@@ -1,0 +1,3 @@
+If you use pyMETRIC in any academic work then you *must* cite the following papers:
+
+
