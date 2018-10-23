@@ -7,6 +7,7 @@ Created on Thu Jun 28 18:56:06 2018
 
 import pyTVDI
 import numpy as np
+from scipy.signal import convolve2d
 
 NDVI_SOIL = 0.1
 NDVI_FULL = 0.75
@@ -94,7 +95,7 @@ def TVDI_temperature(ndvi_array,
 
     return hot_pixel, cold_pixel
 
-def cimec(ndvi_array,
+def cimec(vi_array,
           lst_array,
           albedo_array,
           sza_array,
@@ -117,7 +118,7 @@ def cimec(ndvi_array,
         solar zenith angle (degrees)
     cv_lst : numpy array
         Coefficient of variation of LST as homogeneity measurement
-        form neighboring pixels
+        from neighboring pixels
     ETrF_bare : float
         fraction of ETr for bare soil
     adjust_rainfall : None or tuple
@@ -145,14 +146,14 @@ def cimec(ndvi_array,
 #     # Cold pixel
 #==============================================================================
     # Step 1. Find the 5% top NDVI pixels
-    ndvi_top = np.percentile(ndvi_array, 95)
-    ndvi_index = ndvi_array >= ndvi_top
+    ndvi_top = np.percentile(vi_array, 95)
+    ndvi_index = vi_array >= ndvi_top
 
     # Step 2. Identify the coldest 20% LST pixels from ndvi_index and compute their LST and NDVI mean value
     lst_low = np.percentile(lst_array[ndvi_index], 20)
     lst_index = lst_array <= lst_low
     lst_cold = np.mean(lst_array[lst_index])
-    ndvi_1 = np.mean(ndvi_array[lst_index])
+    ndvi_1 = np.mean(vi_array[lst_index])
     
     # Step 3. Cold pixel candidates are within 0.2K from lst_cold 
     #and albedo within 0.02% of albedo_thres
@@ -181,8 +182,8 @@ def cimec(ndvi_array,
 #     # Cold pixel
 #==============================================================================
     # Step 1. Find the 10% lowest NDVI    
-    ndvi_low = np.percentile(ndvi_array, 10)
-    ndvi_index = ndvi_array <= ndvi_low
+    ndvi_low = np.percentile(vi_array, 10)
+    ndvi_index = vi_array <= ndvi_low
     
     # Step 2. Identify the hotest 20% LST pixels from ndvi_index and compute their LST and NDVI mean value
     lst_high = np.percentile(lst_array[ndvi_index], 80)
@@ -205,7 +206,7 @@ def cimec(ndvi_array,
                                                    float(vi_array[hot_pixel])))
     
     # Step 5. ETrF for the hot candidate
-    f_c = (ndvi_array[hot_pixel] - NDVI_SOIL) / (NDVI_FULL - NDVI_SOIL)
+    f_c = (vi_array[hot_pixel] - NDVI_SOIL) / (NDVI_FULL - NDVI_SOIL)
     ETrF_hot = f_c * ETrF_cold + (1.0 - f_c) * ETrF_bare
     
     return cold_pixel, hot_pixel, ETrF_cold, ETrF_hot
@@ -395,27 +396,17 @@ def incremental_search(vi_array, lst_array, mask, is_cold = True):
             # If we reach here is because not enought pixels were found
             # Incresa the range of percentiles
             step += 5
-
-size = (1000, 1000)
-lst_array = np.ones(size) + 273 + 5* np.random.rand(size[0],size[1])
-lst_array[100,100] = 1e5
-vi_array = np.random.rand(size[0],size[1])
-albedo_array = np.ones(size) *0.23 + 2*np.random.normal(0, 0.1, size = size)
-
-
-cold_pixel, hot_pixel = esa(vi_array,
-                              lst_array,
-                              np.zeros(vi_array.shape),
-                              np.zeros(vi_array.shape),
-                              np.zeros(vi_array.shape))
-
-cold_pixel, hot_pixel, ETrF_cold, ETrF_hot = cimec(vi_array,
-                                                  lst_array,
-                                                  albedo_array,
-                                                  np.ones(size) + 57,
-                                                  np.zeros(size),
-                                                  np.zeros(size),
-                                                  ETrF_bare = 0,
-                                                  adjust_rainfall = False)
-
-cold_pixel, hot_pixel = maxmin_temperature(vi_array, lst_array)
+            
+def moving_cv_filter(data, window):
+    
+    ''' window is a 2 element tuple with the moving window dimensions (rows, columns)'''
+    kernel = np.ones(window)/np.prod(np.asarray(window))
+    mean = convolve2d(data, kernel, mode = 'same', boundary = 'symm')
+    
+    distance = (data - mean)**2
+    
+    std = np.sqrt(convolve2d(distance, kernel, mode = 'same', boundary = 'symm'))
+    
+    cv = std/mean
+    
+    return cv
