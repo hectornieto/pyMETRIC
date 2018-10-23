@@ -52,7 +52,8 @@ def METRIC(Tr_K,
            calcG_params=[
                 [1],
                 0.35],
-           UseL=False):
+           UseL=False,
+           UseDEM=False):
     
     '''Calulates bulk fluxes using METRIC model
 
@@ -162,10 +163,20 @@ def METRIC(Tr_K,
     else:  # We force Monin-Obukhov lenght to the provided array/value
         L = np.ones(Tr_K.shape) * UseL
         max_iterations = 1  # No iteration
-
+    
+    if isinstance(UseDEM, bool):
+        Tr_datum = np.asarray(Tr_K)
+        Ta_datum = np.asarray(T_A_K)
+    else:
+        gamma_w = met.calc_lapse_rate_moist(T_A_K, ea, p)
+        Tr_datum = Tr_K + gamma_w * UseDEM
+        Ta_datum = T_A_K + gamma_w * (UseDEM + z_T)
+        
     # Calculate the general parameters
     rho = met.calc_rho(p, ea, T_A_K)  # Air density
     c_p = met.calc_c_p(p, ea)  # Heat capacity of air
+    # Calculate the general parameters
+    rho_datum = met.calc_rho(p, ea, Ta_datum)  # Air density
  
     # Calc initial Monin Obukhov variables
     u_friction = MO.calc_u_star(u, z_u, L, d_0, z_0M)
@@ -201,7 +212,7 @@ def METRIC(Tr_K,
             # derived
             L_endmembers = MO.calc_L(u_friction[endmembers], 
                                      T_A_K[endmembers], 
-                                     rho[endmembers], 
+                                     rho_datum[endmembers], 
                                      c_p[endmembers], 
                                      H_endmembers, 
                                      np.asarray([LE_cold, LE_hot]))
@@ -234,17 +245,17 @@ def METRIC(Tr_K,
     # Calculate the temperature gradients
     dT_endmembers = calc_dT(H[endmembers],
                             R_A_endmembers,
-                            rho[endmembers],
+                            rho_datum[endmembers],
                             c_p[endmembers])
 
     #dT constants
     dT_a = (dT_endmembers[1] - dT_endmembers[0]) \
-            / (Tr_K[endmembers[1]] - Tr_K[endmembers[0]])    #Allen 2007 eq 50
+            / (Tr_datum[endmembers[1]] - Tr_datum[endmembers[0]])    #Allen 2007 eq 50
     
-    dT_b = (dT_endmembers[1] - dT_a) / Tr_K[endmembers[1]]                    #Allen 2007 eq 51
+    dT_b = (dT_endmembers[1] - dT_a) / Tr_datum[endmembers[1]]                    #Allen 2007 eq 51
     
     #Apply the constant to the whole image
-    dT = dT_a + dT_b * Tr_K                          #Allen 2007 eq. 29
+    dT = dT_a + dT_b * Tr_datum                         #Allen 2007 eq. 29
    
 #==============================================================================
 #     ITERATIONS FOR MONIN-OBUKHOV LENGTH AND H TO CONVERGE
@@ -269,7 +280,7 @@ def METRIC(Tr_K,
             R_A, _, _ = tseb.calc_resistances(tseb.KUSTAS_NORMAN_1999, 
                                               {"R_A": R_A_params})
         
-        H = calc_H(dT, rho, c_p, R_A) 
+        H = calc_H(dT, rho_datum, c_p, R_A) 
         LE = Rn - G - H
         
         if isinstance(UseL, bool):
@@ -281,13 +292,13 @@ def METRIC(Tr_K,
             L_old = np.array(L_endmembers)
             L_old[np.fabs(L_old) == 0] = 1e-36
 
-            u_friction_endmembers = MO.calc_u_star(u[endmembers], 
-                                                   z_u[endmembers], 
-                                                   L_endmembers,
-                                                   d_0[endmembers],
-                                                   z_0M[endmembers])
+            u_friction = MO.calc_u_star(u, 
+                                        z_u, 
+                                        L,
+                                        d_0,
+                                        z_0M)
 
-            u_friction_endmembers = np.maximum(u_friction_min, u_friction_endmembers)
+            u_friction = np.maximum(u_friction_min, u_friction)
 
 
     flag, Ln, LE, H, G, R_A, u_friction, L, n_iterations = map(
