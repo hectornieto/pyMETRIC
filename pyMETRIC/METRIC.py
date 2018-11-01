@@ -32,6 +32,8 @@ KARMAN = 0.41
 TALL_REFERENCE = 1
 SHORT_REFERENCE = 0
 
+F_INVALID = 255
+
 def METRIC(Tr_K,
            T_A_K,
            u,
@@ -153,7 +155,7 @@ def METRIC(Tr_K,
                         [Tr_K] * 12)
 
     # Create the output variables
-    [flag, Ln, LE, H, G, R_A] = [np.zeros(Tr_K.shape)+np.NaN for i in range(6)]
+    [flag, Ln, LE, H, G, R_A, iterations] = [np.zeros(Tr_K.shape)+np.NaN for i in range(7)]
 
     # iteration of the Monin-Obukhov length
     if isinstance(UseL, bool):
@@ -193,9 +195,21 @@ def METRIC(Tr_K,
     G[i] = tseb.calc_G([calcG_params[0], calcG_array], Rn, i)
 
     # Get cold and hot variables
-    endmembers = [[cold_pixel], [hot_pixel]]
- 
-    H_endmembers = calc_H_residual(Rn[endmembers], G[endmembers], LE=LE[endmembers])
+    Rn_endmembers = np.array([Rn[cold_pixel], Rn[hot_pixel]])
+    G_endmembers = np.array([G[cold_pixel], G[hot_pixel]])
+    LE_endmembers = np.array([LE_cold[cold_pixel], LE_hot[hot_pixel]])
+    u_friction_endmembers = np.array([u_friction[cold_pixel], u_friction[hot_pixel]])
+    u_endmembers = np.array([u[cold_pixel], u[hot_pixel]])
+    z_u_endmembers = np.array([z_u[cold_pixel], z_u[hot_pixel]])
+    Ta_datum_endmembers = np.array([Ta_datum[cold_pixel], Ta_datum[hot_pixel]])
+    z_T_endmembers = np.array([z_T[cold_pixel], z_T[hot_pixel]])
+    rho_datum_endmembers = np.array([rho_datum[cold_pixel], rho_datum[hot_pixel]])
+    c_p_endmembers = np.array([c_p[cold_pixel], c_p[hot_pixel]])
+    d_0_endmembers = np.array([d_0[cold_pixel], d_0[hot_pixel]])
+    z_0M_endmembers = np.array([z_0M[cold_pixel], z_0M[hot_pixel]])
+    z_0H_endmembers = np.array([z_0H[cold_pixel], z_0H[hot_pixel]])
+    
+    H_endmembers = calc_H_residual(Rn_endmembers, G_endmembers, LE=LE_endmembers)
 
     #==============================================================================
     #     HOT and COLD PIXEL ITERATIONS FOR MONIN-OBUKHOV LENGTH AND H TO CONVERGE
@@ -210,49 +224,50 @@ def METRIC(Tr_K,
         if isinstance(UseL, bool):
             # Now L can be recalculated and the difference between iterations
             # derived
-            L_endmembers = MO.calc_L(u_friction[endmembers], 
-                                     T_A_K[endmembers], 
-                                     rho_datum[endmembers], 
-                                     c_p[endmembers], 
+            
+            L_endmembers = MO.calc_L(u_friction_endmembers, 
+                                     Ta_datum_endmembers, 
+                                     rho_datum_endmembers, 
+                                     c_p_endmembers, 
                                      H_endmembers, 
-                                     np.asarray([LE_cold, LE_hot]))
+                                     LE_endmembers)
 
             L_diff = np.fabs(L_endmembers - L_old) / np.fabs(L_old)
             L_old = np.array(L_endmembers)
             L_old[np.fabs(L_old) == 0] = 1e-36
 
-            u_friction_endmembers = MO.calc_u_star(u[endmembers], 
-                                                   z_u[endmembers], 
+            u_friction_endmembers = MO.calc_u_star(u_endmembers, 
+                                                   z_u_endmembers, 
                                                    L_endmembers,
-                                                   d_0[endmembers],
-                                                   z_0M[endmembers])
+                                                   d_0_endmembers,
+                                                   z_0M_endmembers)
 
             u_friction_endmembers = np.maximum(u_friction_min, u_friction_endmembers)
 
-        else:
-            u_friction_endmembers = u_friction[endmembers]
-
     # Hot and Cold aerodynamic resistances
-    R_A_params = {"z_T": z_T[endmembers],
-                  "u_friction": u_friction_endmembers,  
-                  "L": L_endmembers,
-                  "d_0": d_0[endmembers],
-                  "z_0H": z_0H[endmembers]}
-        
-    R_A_endmembers, _, _ = tseb.calc_resistances(tseb.KUSTAS_NORMAN_1999, 
+    if use_METRIC_resistance == True:
+        R_A_endmembers = calc_R_A_METRIC(u_friction_endmembers, L_endmembers)
+    else:
+        R_A_params = {"z_T": z_T_endmembers,
+              "u_friction": u_friction_endmembers,  
+              "L": L_endmembers,
+              "d_0": d_0_endmembers,
+              "z_0H": z_0H_endmembers}
+
+        R_A_endmembers, _, _ = tseb.calc_resistances(tseb.KUSTAS_NORMAN_1999, 
                                                  {"R_A": R_A_params})
 
     # Calculate the temperature gradients
-    dT_endmembers = calc_dT(H[endmembers],
+    dT_endmembers = calc_dT(H_endmembers,
                             R_A_endmembers,
-                            rho_datum[endmembers],
-                            c_p[endmembers])
+                            rho_datum_endmembers,
+                            c_p_endmembers)
 
     #dT constants
     dT_a = (dT_endmembers[1] - dT_endmembers[0]) \
-            / (Tr_datum[endmembers[1]] - Tr_datum[endmembers[0]])    #Allen 2007 eq 50
+            / (Tr_datum[hot_pixel] - Tr_datum[cold_pixel])    #Allen 2007 eq 50
     
-    dT_b = (dT_endmembers[1] - dT_a) / Tr_datum[endmembers[1]]                    #Allen 2007 eq 51
+    dT_b = (dT_endmembers[1] - dT_a) / Tr_datum[hot_pixel]                    #Allen 2007 eq 51
     
     #Apply the constant to the whole image
     dT = dT_a + dT_b * Tr_datum                         #Allen 2007 eq. 29
@@ -263,48 +278,52 @@ def METRIC(Tr_K,
     # Initially assume stable atmospheric conditions and set variables for
     L_old = np.ones(dT.shape)
     L_diff = np.ones(dT.shape) * float('inf')
+    i = np.ones(dT.shape, dtype=bool)
     for n_iterations in range(max_iterations):
+        iterations[i] = n_iterations
         if np.all(L_diff < L_thres):
             break
         
+        i = L_diff >= L_thres
+        
         if use_METRIC_resistance == True:
-            R_A = calc_R_A_METRIC(u_friction, L)
+            R_A[i]= calc_R_A_METRIC(u_friction[i], L[i])
         
         else:
-            R_A = {"z_T": z_T,
-                   "u_friction": u_friction,  
-                   "L": L,
-                   "d_0": d_0,
-                   "z_0H": z_0H}
-                
-            R_A, _, _ = tseb.calc_resistances(tseb.KUSTAS_NORMAN_1999, 
+            R_A_params = {"z_T": z_T[i],
+                           "u_friction": u_friction[i],  
+                           "L": L[i],
+                           "d_0": d_0[i],
+                           "z_0H": z_0H[i]}
+                        
+            R_A[i], _, _ = tseb.calc_resistances(tseb.KUSTAS_NORMAN_1999, 
                                               {"R_A": R_A_params})
         
-        H = calc_H(dT, rho_datum, c_p, R_A) 
-        LE = Rn - G - H
+        H[i] = calc_H(dT[i], rho[i], c_p[i], R_A[i]) 
+        LE[i] = Rn[i] - G[i] - H[i]
         
         if isinstance(UseL, bool):
             # Now L can be recalculated and the difference between iterations
             # derived
-            L = MO.calc_L(u_friction, T_A_K, rho, c_p, H, LE)
+            L[i] = MO.calc_L(u_friction[i], T_A_K[i], rho[i], c_p[i], H[i], LE[i])
                                      
-            L_diff = np.fabs(L_endmembers - L_old) / np.fabs(L_old)
-            L_old = np.array(L_endmembers)
+            L_diff = np.fabs(L - L_old) / np.fabs(L_old)
+            L_old = np.asarray(L)
             L_old[np.fabs(L_old) == 0] = 1e-36
 
-            u_friction = MO.calc_u_star(u, 
-                                        z_u, 
-                                        L,
-                                        d_0,
-                                        z_0M)
+            u_friction[i] = MO.calc_u_star(u[i], 
+                                            z_u[i], 
+                                            L[i],
+                                            d_0[i],
+                                            z_0M[i])
 
-            u_friction = np.maximum(u_friction_min, u_friction)
+            u_friction = np.asarray(np.maximum(u_friction_min, u_friction))
 
 
-    flag, Ln, LE, H, G, R_A, u_friction, L, n_iterations = map(
-        np.asarray, (flag, Ln, LE, H, G, R_A, u_friction, L, n_iterations))
+    flag, Ln, LE, H, G, R_A, u_friction, L, iterations = map(
+        np.asarray, (flag, Ln, LE, H, G, R_A, u_friction, L, iterations))
 
-    return flag, Ln, LE, H, G, R_A, u_friction, L, n_iterations
+    return flag, Ln, LE, H, G, R_A, u_friction, L, iterations
 
 
 def calc_dT(H, R_AH, rho, c_p):
@@ -403,7 +422,7 @@ def pet_asce(T_A_K, u, ea, p, Sdn, z_u, z_T, f_cd = 1, reference = TALL_REFERENC
     es = met.calc_vapor_pressure(T_A_K)             # saturation water vapour pressure in mb
 
     # Net shortwave radiation
-    Sdn = Sdn * 3600 / 1e6 # W m-2 to MJ m-2 h-1
+    #Sdn = Sdn * 3600 / 1e6 # W m-2 to MJ m-2 h-1
     albedo = 0.23
     Sn = Sdn * (1.0 - albedo)    
     # Net longwave radiation
@@ -430,12 +449,66 @@ def pet_asce(T_A_K, u, ea, p, Sdn, z_u, z_T, f_cd = 1, reference = TALL_REFERENC
     # Windspeed at 2m height
     z_0M = h_c * 0.123
     d = h_c * 0.67
-    u_2 = wind_profile(u, z_u, z_0M, 2.0, d)
+    u_2 = wind_profile(u, z_u, z_0M, d, 2.0)
     
-    ET = (0.048 * delta * (Rn - G) + psicr * C_n * u_2 * (es - ea) / T_A_K) \
+    LE = (delta * (Rn - G) + psicr * C_n * u_2 * (es - ea) / T_A_K) \
          / (delta + psicr * C_d * u_2)
     
-    return ET
+    return LE
+
+def pet_fao56(T_A_K, u, ea, p, Sdn, z_u, z_T, f_cd = 1, reference = TALL_REFERENCE):
+    '''Calcultaes the latent heat flux for well irrigated and cold pixel using
+    ASCE potential ET from a tall (alfalfa) crop
+
+    Parameters
+    ----------
+    T_K : float or array
+        temperature (Kelvin)
+    
+    Returns
+    -------    
+    LE_cold : float or array
+        latent heat flux for well irrigated pixel (W m-2)
+    
+    '''
+    # Atmospheric constants
+    delta = 10. * met.calc_delta_vapor_pressure(T_A_K)  # slope of saturation water vapour pressure in mb K-1
+    lambda_ = met.calc_lambda(T_A_K)                     # latent heat of vaporization MJ kg-1
+    psicr = met.calc_psicr(p, lambda_)                     # Psicrometric constant (mb K-1)
+    es = met.calc_vapor_pressure(T_A_K)             # saturation water vapour pressure in mb
+    rho= met.calc_rho(p, ea, T_A_K)
+    c_p = met.calc_c_p(p, ea)  # Heat capacity of air
+    
+    # Net shortwave radiation
+    #Sdn = Sdn * 3600 / 1e6 # W m-2 to MJ m-2 h-1
+    albedo = 0.23
+    Sn = Sdn * (1.0 - albedo)    
+    # Net longwave radiation
+    Ln = sb * f_cd * (0.34 - 0.14 * np.sqrt(ea)) * T_A_K**4
+    # Net radiation
+    Rn = Sn + Ln
+    
+    if reference == TALL_REFERENCE:
+        G_ratio = 0.04
+        h_c = 0.5
+    else:
+        G_ratio = 0.1
+        h_c = 0.12
+    
+    R_c = 70.0
+
+    # Soil heat flux
+    G = G_ratio * Rn
+    # Windspeed at 2m height
+    z_0M = h_c * 0.123
+    d = h_c * 2./3.
+    u_2 = wind_profile(u, z_u, z_0M, d, 2.0)
+    R_a = 208./u_2
+    
+    LE = (delta * (Rn - G) +  rho * c_p * (es - ea) / R_a) \
+         / (delta + psicr * (1.0 + R_c / R_a))
+    
+    return LE
 
 def calc_cloudiness(Sdn, S_0):
     
@@ -444,7 +517,7 @@ def calc_cloudiness(Sdn, S_0):
 
 def wind_profile(u, z_u, z_0M, d, z):
     
-    u_z = u * np.log((z_u - d)/z_0M) / np.log((z - d)/z_0M)
+    u_z = u * np.log((z - d)/z_0M) / np.log((z_u - d)/z_0M)
     
     return u_z
 
