@@ -434,7 +434,8 @@ def pet_asce(T_A_K, u, ea, p, Sdn, z_u, z_T, f_cd = 1, reference = TALL_REFERENC
     # Atmospheric constants
     delta = 10. * met.calc_delta_vapor_pressure(T_A_K)  # slope of saturation water vapour pressure in mb K-1
     lambda_ = met.calc_lambda(T_A_K)                     # latent heat of vaporization MJ kg-1
-    psicr = met.calc_psicr(p, lambda_)                     # Psicrometric constant (mb K-1)
+    c_p = met.calc_c_p(p, ea)  # Heat capacity of air
+    psicr = met.calc_psicr(c_p, p, lambda_)                     # Psicrometric constant (mb K-1)
     es = met.calc_vapor_pressure(T_A_K)             # saturation water vapour pressure in mb
 
     # Net shortwave radiation
@@ -501,10 +502,10 @@ def pet_fao56(T_A_K, u, ea, p, Sdn, z_u, z_T, f_cd = 1, reference = SHORT_REFERE
     # Atmospheric constants
     delta = 10. * met.calc_delta_vapor_pressure(T_A_K)  # slope of saturation water vapour pressure in mb K-1
     lambda_ = met.calc_lambda(T_A_K)                     # latent heat of vaporization MJ kg-1
-    psicr = met.calc_psicr(p, lambda_)                     # Psicrometric constant (mb K-1)
+    c_p = met.calc_c_p(p, ea)  # Heat capacity of air
+    psicr = met.calc_psicr(c_p, p, lambda_)                     # Psicrometric constant (mb K-1)
     es = met.calc_vapor_pressure(T_A_K)             # saturation water vapour pressure in mb
     rho= met.calc_rho(p, ea, T_A_K)
-    c_p = met.calc_c_p(p, ea)  # Heat capacity of air
     
     # Net shortwave radiation
     #Sdn = Sdn * 3600 / 1e6 # W m-2 to MJ m-2 h-1
@@ -557,7 +558,7 @@ def calc_Ln(T_A_K, ea, f_cd=1):
         Net longwave radiation (W m-2)
     '''
     
-    Ln = SB * f_cd * (0.34 - 0.14 * np.sqrt(ea)) * T_A_K**4
+    Ln = SB * f_cd * (0.34 - 0.14 * np.sqrt(ea*0.1)) * T_A_K**4
    
     return Ln
 
