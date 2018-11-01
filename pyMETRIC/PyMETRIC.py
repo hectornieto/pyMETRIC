@@ -34,6 +34,7 @@ from pyTSEB import meteo_utils as met
 from pyTSEB import net_radiation as rad
 from pyMETRIC import METRIC, endmember_search
 
+VI_MAX = 0.95
 
 # Set the landcover classes that will be used for searching endmembers 
 TREE_SEARCH_IGBP = [res.CONIFER_E,
@@ -626,7 +627,12 @@ class PyMETRIC(PyTSEB):
                                                       std_lst[aoi],
                                                       cv_albedo[aoi])
         
-        out_data['ET_r_f'] = np.ones(Tr_datum.shape) * 1.05
+        # Reduce potential ET based on vegetation density based on Allen et al. 2013
+        out_data['ET_r_f_cold'] = np.ones(in_data['T_R1'].shape) * 1.05
+        out_data['ET_r_f_cold'][in_data['VI'] < VI_MAX] = 1.05/VI_MAX * in_data['VI'][in_data['VI'] < VI_MAX] # Eq. 4 [Allen 2013]
+        
+        out_data['ET_r_f_hot'] = in_data['VI'] * out_data['ET_r_f_cold'] \
+                                 + (1.0 - in_data['VI']) * in_data['ET_bare_soil'] # Eq. 5 [Allen 2013]
         
         del in_data['SZA'], in_data['VI'], Tr_datum, cv_ndvi, cv_lst, std_lst, cv_albedo
         
@@ -682,8 +688,8 @@ class PyMETRIC(PyTSEB):
                                in_data['z_T'][i],
                                in_data['cold_pixel'],
                                in_data['hot_pixel'],
-                               out_data['ET_r_f'][i] * out_data['ET0_datum'][i],
-                               LE_hot=in_data['ET_bare_soil'][i],
+                               out_data['ET_r_f_cold'][i] * out_data['ET0_datum'][i],
+                               LE_hot=out_data['ET_r_f_hot'][i] * out_data['ET0_datum'][i],
                                use_METRIC_resistance = self.use_METRIC_resistance,
                                calcG_params=model_params["calcG_params"],
                                UseDEM=in_data['alt'][i])
