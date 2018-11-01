@@ -67,6 +67,8 @@ class PyMETRIC(PyTSEB):
             parameters["ET_bare_soil"] = 0
         if "VI" not in parameters.keys():
             parameters["VI"] = ''
+        if "endmember_search" not in parameters.keys():
+            parameters["endmember_search"] = 0
         
         
         parameters["resistance_form"] = 0
@@ -74,7 +76,7 @@ class PyMETRIC(PyTSEB):
         
         self.use_METRIC_resistance = int(self.p['use_METRIC_resistance'])
         self.tall_reference = int(self.p['tall_reference'])
-
+        self.endmember_search = int(self.p['endmember_search'])
 
     def _get_input_structure(self):
         ''' Input fields' names for METRIC model.  Only relevant for image processing mode.
@@ -101,6 +103,7 @@ class PyMETRIC(PyTSEB):
         input_fields["ETrF_bare"] = "Reference ET for bare soil"
         input_fields["tall_reference"] = "Predominant land cover are trees"
         input_fields['alt'] = "Digital Elevation Model"
+        input_fields['endmember_search'] = "Endmember search algorithm"
         return input_fields
 
     def _set_special_model_input(self, field, dims):
@@ -606,27 +609,40 @@ class PyMETRIC(PyTSEB):
         
         del in_data['S_dn']
         
+        # Compute spatial homogeneity metrics
         cv_ndvi, _, _ = endmember_search.moving_cv_filter(in_data['VI'], (10, 10))
         cv_lst, _, std_lst = endmember_search.moving_cv_filter(Tr_datum, (10, 10))
         cv_albedo,_, _ = endmember_search.moving_cv_filter(out_data['albedo'], (10, 10))
         
-# =============================================================================
-#         [in_data['cold_pixel'],
-#          in_data['hot_pixel']= endmember_search.cimec(in_data['VI'][aoi],
-#                                             Tr_datum[aoi],
-#                                             out_data['albedo'][aoi],
-#                                             in_data['SZA'][aoi],
-#                                             cv_ndvi[aoi],
-#                                             cv_lst[aoi],
-#                                             adjust_rainfall = False)
-# =============================================================================
+        # Find hot/cold endmembers
+        if self.endmember_search == 0:
+            [in_data['cold_pixel'],
+             in_data['hot_pixel']] = endmember_search.cimec(in_data['VI'][aoi],
+                                                            Tr_datum[aoi],
+                                                            out_data['albedo'][aoi],
+                                                            in_data['SZA'][aoi],
+                                                            cv_ndvi[aoi],
+                                                            cv_lst[aoi],
+                                                            adjust_rainfall = False)
+
+        elif self.endmember_search == 1:
+            [in_data['cold_pixel'], 
+             in_data['hot_pixel']] = endmember_search.esa(in_data['VI'][aoi],
+                                                          Tr_datum[aoi],
+                                                          cv_ndvi[aoi],
+                                                          std_lst[aoi],
+                                                          cv_albedo[aoi])
         
-        in_data['cold_pixel'], in_data['hot_pixel'] = endmember_search.esa(in_data['VI'][aoi],
-                                                      Tr_datum[aoi],
-                                                      cv_ndvi[aoi],
-                                                      std_lst[aoi],
-                                                      cv_albedo[aoi])
-        
+        else:
+            [in_data['cold_pixel'],
+             in_data['hot_pixel']] = endmember_search.cimec(in_data['VI'][aoi],
+                                                            Tr_datum[aoi],
+                                                            out_data['albedo'][aoi],
+                                                            in_data['SZA'][aoi],
+                                                            cv_ndvi[aoi],
+                                                            cv_lst[aoi],
+                                                            adjust_rainfall = False)
+
         # Reduce potential ET based on vegetation density based on Allen et al. 2013
         out_data['ET_r_f_cold'] = np.ones(in_data['T_R1'].shape) * 1.05
         out_data['ET_r_f_cold'][in_data['VI'] < VI_MAX] = 1.05/VI_MAX * in_data['VI'][in_data['VI'] < VI_MAX] # Eq. 4 [Allen 2013]
