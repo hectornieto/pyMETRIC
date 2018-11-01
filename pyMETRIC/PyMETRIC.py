@@ -611,15 +611,12 @@ class PyMETRIC(PyTSEB):
         
 # =============================================================================
 #         [in_data['cold_pixel'],
-#          in_data['hot_pixel'],
-#          ETrF_cold,
-#          ETrF_hot] = endmember_search.cimec(in_data['VI'][aoi],
+#          in_data['hot_pixel']= endmember_search.cimec(in_data['VI'][aoi],
 #                                             Tr_datum[aoi],
 #                                             out_data['albedo'][aoi],
 #                                             in_data['SZA'][aoi],
 #                                             cv_ndvi[aoi],
 #                                             cv_lst[aoi],
-#                                             ETrF_bare = 0,
 #                                             adjust_rainfall = False)
 # =============================================================================
         
@@ -628,6 +625,8 @@ class PyMETRIC(PyTSEB):
                                                       cv_ndvi[aoi],
                                                       std_lst[aoi],
                                                       cv_albedo[aoi])
+        
+        out_data['ET_r_f'] = np.ones(Tr_datum.shape) * 1.05
         
         del in_data['SZA'], in_data['VI'], Tr_datum, cv_ndvi, cv_lst, std_lst, cv_albedo
         
@@ -683,7 +682,7 @@ class PyMETRIC(PyTSEB):
                                in_data['z_T'][i],
                                in_data['cold_pixel'],
                                in_data['hot_pixel'],
-                               out_data['ET0_datum'][i],
+                               out_data['ET_r_f'][i] * out_data['ET0_datum'][i],
                                LE_hot=in_data['ET_bare_soil'][i],
                                use_METRIC_resistance = self.use_METRIC_resistance,
                                calcG_params=model_params["calcG_params"],
