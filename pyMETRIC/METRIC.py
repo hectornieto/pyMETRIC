@@ -267,7 +267,7 @@ def METRIC(Tr_K,
     dT_a = (dT_endmembers[1] - dT_endmembers[0]) \
             / (Tr_datum[hot_pixel] - Tr_datum[cold_pixel])    #Allen 2007 eq 50
     
-    dT_b = (dT_endmembers[1] - dT_a) / Tr_datum[hot_pixel]                    #Allen 2007 eq 51
+    dT_b = (dT_endmembers[1] - dT_a) / Tr_datum[hot_pixel]    #Allen 2007 eq 51
     
     #Apply the constant to the whole image
     dT = dT_a + dT_b * Tr_datum                         #Allen 2007 eq. 29
