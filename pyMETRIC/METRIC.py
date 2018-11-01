@@ -25,7 +25,7 @@ ITERATIONS = 100
 # kB coefficient
 kB = 0.0
 # Stephan Boltzmann constant (W m-2 K-4)
-sb = 5.670373e-8
+SB = 5.670373e-8
 # von Karman constant
 KARMAN = 0.41
 
@@ -557,14 +557,15 @@ def calc_Ln(T_A_K, ea, f_cd=1):
         Net longwave radiation (W m-2)
     '''
     
-    Ln = sb * f_cd * (0.34 - 0.14 * np.sqrt(ea)) * T_A_K**4
+    Ln = SB * f_cd * (0.34 - 0.14 * np.sqrt(ea)) * T_A_K**4
    
     return Ln
 
 def calc_cloudiness(Sdn, S_0):
     
     f_cd = 1.35 * Sdn/S_0 - 0.35
-    f_cd = np.clip(f_cd, 0.05, 1.0)    
+    f_cd = np.clip(f_cd, 0.05, 1.0)   
+    return f_cd
 
 def wind_profile(u, z_u, z_0M, d, z):
     
