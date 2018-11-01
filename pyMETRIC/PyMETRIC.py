@@ -566,6 +566,23 @@ class PyMETRIC(PyTSEB):
         Ta_datum = in_data['T_A1'] + gamma_w * (in_data['alt'] + in_data['z_T'])
         
         del gamma_w
+
+# =============================================================================
+#         # Estimate cloudiness factor
+#         [Rdirvis,
+#          Rdifvis,
+#          Rdirnir,
+#          Rdifnir] = rad.calc_potential_irradiance_weiss(in_data['SZA'],
+#                                                         press=in_data['p'])
+#         
+#         S_dn_0 = Rdirvis + Rdifvis + Rdirnir + Rdifnir
+#         
+#         
+#         f_cd = METRIC.calc_cloudiness(in_data['S_dn'], S_dn_0)
+# 
+#         del Rdirvis, Rdifvis, Rdirnir, Rdifnir, S_dn_0
+#         
+# =============================================================================
         out_data['ET0_datum'] = METRIC.pet_asce(Ta_datum,
                                           in_data['u'],
                                           in_data['ea'],
