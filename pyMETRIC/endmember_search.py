@@ -5,95 +5,27 @@ Created on Thu Jun 28 18:56:06 2018
 @author: hector
 """
 
-import pyTVDI
+# import pyTVDI
 import numpy as np
 from scipy.signal import convolve2d
 
-NDVI_SOIL = 0.1
-NDVI_FULL = 0.75
-
-def find_metric_endmembers(ndvi_array, lst_array, albedo_array, criterion=[0, {}]):
-    '''Image based search for hot and cold pixels
-    
-    Parameters
-    ----------
-    ndvi_array : ndvi image numpy array
-    lst_array : ndvi image numpy array
-    criterion : search criteria dictionary
-        [flag] = 0 : max/min temperature
-        [flag] = 1 : mean temperature for the %perc highest/lowest NDVI pixels
-            [perc] : two tail percentile to apply
-        [flag] = 2 : triangle
-            [hot_ndvi] : ndvi value at which the dry edge will be extrapolated
-                        to get the hot pixel
-            [cold_flag] : flag that set the criterion to get the cold edge
-                if flag is numeric the maxvar_VI method is used with flag value 
-                set as the maximum NDVI
-    
-    Returns
-    -------
-    hot_pixel : tuple with the pixel coordinates of the hot pixel
-    cold_pixel : tuple with the pixel coordinates of the cold pixel'''
-    
-    # Default method is the absolute max/min temperature
-    
-    if criterion[0] == 0: #ManMin Temperature Method
-        cold_pixel, hot_pixel = maxmin_temperature(ndvi_array,lst_array)
-        
-    elif criterion[0] == 1:#Percentile Method
-        if 'perc' not in criterion[1].keys:
-            criterion[1]['perc'] = 5 #Default is 5% percentile
-        cold_pixel, hot_pixel = percentile_temperature(ndvi_array, lst_array, criterion['perc'])
-
-    elif criterion[0] == 2:#TVDI Method
-        if criterion[1]['cold_edge_method'] == 0: #Wet edge (cold LST) used the mean
-            ts_min_method = pyTVDI.cMEAN
-            ts_min_params = [20, 1]
-        else:  #Wet edge (cold LST) used the variable maximum NDVI
-            ts_min_method = pyTVDI.cVAR_MAX_NDVI
-            ts_min_params = [float(criterion[1]['cold_edge_param']), 1]
-        
-        # Calculate the triangl
-        cold_pixel, hot_pixel = TVDI_temperature(ndvi_array,
-                                                lst_array,
-                                                ts_min_method,
-                                                ts_min_params,
-                                                ndvi_lower_limit = NDVI_SOIL)
-    
-    return cold_pixel, hot_pixel
-       
-def maxmin_temperature(ndvi_array, lst_array, ndvi_lower_limit = NDVI_SOIL):
+VI_SOIL = 0.0
+VI_FULL = 0.95
+   
+def maxmin_temperature(vi_array, lst_array, vi_lower_limit = VI_SOIL):
     #cold pixel
-    lst = np.amin(lst_array[ndvi_array >= ndvi_lower_limit])
+    lst = np.amin(lst_array[vi_array >= vi_lower_limit])
     cold_pixel = tuple(np.argwhere(lst_array == lst)[0])
     print('Cold  pixel found with %s K and %s VI'%(float(lst_array[cold_pixel]),
                                                    float(vi_array[cold_pixel])))
     #hot pixel
-    lst = np.amax(lst_array[ndvi_array >= ndvi_lower_limit])
+    lst = np.amax(lst_array[vi_array <= vi_lower_limit])
     hot_pixel = tuple(np.argwhere(lst_array == lst)[0])
     print('Hot  pixel found with %s K and %s VI'%(float(lst_array[hot_pixel]),
                                                    float(vi_array[hot_pixel])))
    
     return cold_pixel, hot_pixel
 
-def TVDI_temperature(ndvi_array,
-                    lst_array,
-                    ts_min_method,
-                    ts_min_params,
-                    ndvi_lower_limit = NDVI_SOIL):
-
-    lin_fit, ts_min, fit_stats=pyTVDI.calc_triangle_tang(ndvi_array,
-                                                         lst_array,
-                                                         0.01,
-                                                         ndvi_lower_limit,
-                                                         ts_min_method, 
-                                                         ts_min_params)
-    
-    cold_pixel = tuple(np.argwhere(lst_array == ts_min)[0])
-    lst = lin_fit[0] + lin_fit[1] * ndvi_lower_limit
-    hot_pixel = tuple(np.argwhere(lst_array == lst)[0])
-
-    return hot_pixel, cold_pixel
 
 def cimec(vi_array,
           lst_array,
@@ -101,7 +33,6 @@ def cimec(vi_array,
           sza_array,
           cv_ndvi,
           cv_lst,
-          ETrF_bare = 0,
           adjust_rainfall = False):
     ''' Finds the hot and cold pixel using the 
     Calibration using Inverse Modelling at Extreme Conditios
@@ -119,8 +50,6 @@ def cimec(vi_array,
     cv_lst : numpy array
         Coefficient of variation of LST as homogeneity measurement
         from neighboring pixels
-    ETrF_bare : float
-        fraction of ETr for bare soil
     adjust_rainfall : None or tuple
         if tuple (rainfall_60, ETr_60) indicates that hot temperature
         will be adjusted based on previous 60 day cummulated rainfall and ET
@@ -129,10 +58,6 @@ def cimec(vi_array,
     cold_pixel : int or tuple
     
     hot_pixel : int or tuple
-
-    ETrF_cold : float    
-    
-    ETrF_hot : float
     
     References
     ----------
@@ -153,7 +78,6 @@ def cimec(vi_array,
     lst_low = np.percentile(lst_array[ndvi_index], 20)
     lst_index = lst_array <= lst_low
     lst_cold = np.mean(lst_array[lst_index])
-    ndvi_1 = np.mean(vi_array[lst_index])
     
     # Step 3. Cold pixel candidates are within 0.2K from lst_cold 
     #and albedo within 0.02% of albedo_thres
@@ -165,19 +89,12 @@ def cimec(vi_array,
     
     # Step 5. From step 3 select the most homogeneous pixel based on its temperature
     cold_pixel = np.logical_and(cold_pixel,
-                                cv_lst == np.amin(cv_lst[cold_pixel]))
+                                cv_lst == np.nanmin(cv_lst[cold_pixel]))
     
     cold_pixel = tuple(np.argwhere(cold_pixel)[0])
     print('Cold  pixel found with %s K and %s VI'%(float(lst_array[cold_pixel]),
                                                    float(vi_array[cold_pixel])))
 
-    
-    # Step 6. ETrF for the cold candidate
-    if ndvi_1 < NDVI_FULL:
-        ETrF_cold = 1.54 * ndvi_1 - 0.1 # Eq. 4a in [Allen2017]..
-    else:
-        ETrF_cold = 1.05 # Eq. 4b in [Allen2017]..
-    
 #==============================================================================
 #     # Cold pixel
 #==============================================================================
@@ -199,17 +116,13 @@ def cimec(vi_array,
                                np.abs(lst_array - lst_hot) <= 0.2)
     
     hot_pixel = np.logical_and(hot_pixel,
-                               cv_ndvi == np.amin(cv_ndvi[hot_pixel]))
+                               cv_ndvi == np.nanmin(cv_ndvi[hot_pixel]))
 
     hot_pixel = tuple(np.argwhere(hot_pixel)[0])
     print('Hot  pixel found with %s K and %s VI'%(float(lst_array[hot_pixel]),
                                                    float(vi_array[hot_pixel])))
     
-    # Step 5. ETrF for the hot candidate
-    f_c = (vi_array[hot_pixel] - NDVI_SOIL) / (NDVI_FULL - NDVI_SOIL)
-    ETrF_hot = f_c * ETrF_cold + (1.0 - f_c) * ETrF_bare
-    
-    return cold_pixel, hot_pixel, ETrF_cold, ETrF_hot
+    return cold_pixel, hot_pixel
 
 
 def esa(vi_array,
@@ -409,4 +322,5 @@ def moving_cv_filter(data, window):
     
     cv = std/mean
     
-    return cv
+    return cv, mean, std
+
