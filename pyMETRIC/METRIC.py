@@ -406,13 +406,29 @@ def pet_asce(T_A_K, u, ea, p, Sdn, z_u, z_T, f_cd = 1, reference = TALL_REFERENC
 
     Parameters
     ----------
-    T_K : float or array
-        temperature (Kelvin)
+    T_A_K : float or array
+        Air temperature (Kelvin).
+    u : float or array
+        Wind speed above the canopy (m s-1).
+    ea : float or array
+        Water vapour pressure above the canopy (mb).
+    p : float or array
+        Atmospheric pressure (mb), use 1013 mb by default.
+    Sdn : float or array
+        Solar irradiance (W m-2).
+    z_u : float or array
+        Height of measurement of windspeed (m).
+    z_T : float or array
+        Height of measurement of air temperature (m).
+    f_cd : float or array
+        cloudiness factor, default = 1
+    reference : bool
+        If true, reference ET is for a tall canopy (i.e. alfalfa)
     
     Returns
     -------    
-    LE_cold : float or array
-        latent heat flux for well irrigated pixel (W m-2)
+    LE : float or array
+        Potential latent heat flux (W m-2)
     
     '''
     # Atmospheric constants
@@ -426,7 +442,7 @@ def pet_asce(T_A_K, u, ea, p, Sdn, z_u, z_T, f_cd = 1, reference = TALL_REFERENC
     albedo = 0.23
     Sn = Sdn * (1.0 - albedo)    
     # Net longwave radiation
-    Ln = sb * f_cd * (0.34 - 0.14 * np.sqrt(ea)) * T_A_K**4
+    Ln = calc_Ln(T_A_K, ea, f_cd=f_cd)
     # Net radiation
     Rn = Sn + Ln
     # Soil heat flux
@@ -456,19 +472,30 @@ def pet_asce(T_A_K, u, ea, p, Sdn, z_u, z_T, f_cd = 1, reference = TALL_REFERENC
     
     return LE
 
-def pet_fao56(T_A_K, u, ea, p, Sdn, z_u, z_T, f_cd = 1, reference = TALL_REFERENCE):
+def pet_fao56(T_A_K, u, ea, p, Sdn, z_u, z_T, f_cd = 1, reference = SHORT_REFERENCE):
     '''Calcultaes the latent heat flux for well irrigated and cold pixel using
-    ASCE potential ET from a tall (alfalfa) crop
+    FAO56 potential ET from a short (grass) crop
 
     Parameters
     ----------
-    T_K : float or array
-        temperature (Kelvin)
-    
-    Returns
-    -------    
-    LE_cold : float or array
-        latent heat flux for well irrigated pixel (W m-2)
+    T_A_K : float or array
+        Air temperature (Kelvin).
+    u : float or array
+        Wind speed above the canopy (m s-1).
+    ea : float or array
+        Water vapour pressure above the canopy (mb).
+    p : float or array
+        Atmospheric pressure (mb), use 1013 mb by default.
+    Sdn : float or array
+        Solar irradiance (W m-2).
+    z_u : float or array
+        Height of measurement of windspeed (m).
+    z_T : float or array
+        Height of measurement of air temperature (m).
+    f_cd : float or array
+        cloudiness factor, default = 1
+    reference : bool
+        If true, reference ET is for a tall canopy (i.e. alfalfa)
     
     '''
     # Atmospheric constants
@@ -484,7 +511,7 @@ def pet_fao56(T_A_K, u, ea, p, Sdn, z_u, z_T, f_cd = 1, reference = TALL_REFEREN
     albedo = 0.23
     Sn = Sdn * (1.0 - albedo)    
     # Net longwave radiation
-    Ln = sb * f_cd * (0.34 - 0.14 * np.sqrt(ea)) * T_A_K**4
+    Ln = calc_Ln(T_A_K, ea, f_cd=f_cd)
     # Net radiation
     Rn = Sn + Ln
     
@@ -510,6 +537,30 @@ def pet_fao56(T_A_K, u, ea, p, Sdn, z_u, z_T, f_cd = 1, reference = TALL_REFEREN
     
     return LE
 
+def calc_Ln(T_A_K, ea, f_cd=1):
+    ''' Estimates net longwave radiation for potential ET
+    
+    Parameters
+    ----------
+    T_A_K : float or array
+        Air temperature (Kelvin).
+    u : float or array
+        Wind speed above the canopy (m s-1).
+    ea : float or array
+        Water vapour pressure above the canopy (mb).
+    f_cd : float or array
+        cloudiness factor
+    
+    Returns
+    -------
+    Ln : float or array
+        Net longwave radiation (W m-2)
+    '''
+    
+    Ln = sb * f_cd * (0.34 - 0.14 * np.sqrt(ea)) * T_A_K**4
+   
+    return Ln
+
 def calc_cloudiness(Sdn, S_0):
     
     f_cd = 1.35 * Sdn/S_0 - 0.35
@@ -527,22 +578,22 @@ def calc_R_A_METRIC(ustar, L):
 
     Parameters
     ----------
-    z_T : float
+    z_T : float or array
         air temperature measurement height (m).
     ustar : float
-        friction velocity (m s-1).
-    L : float
+        float or array velocity (m s-1).
+    L : float or array
         Monin Obukhov Length for stability
-    d_0 : float
+    d_0 : float or array
         zero-plane displacement height (m).
-    z_0M : float
+    z_0M : float or array
         aerodynamic roughness length for momentum trasport (m).
-    z_0H : float
+    z_0H : float or array
         aerodynamic roughness length for heat trasport (m).
 
     Returns
     -------
-    R_A : float
+    R_A : float or array
         aerodyamic resistance to heat transport in the surface layer (s m-1).
 
     References
