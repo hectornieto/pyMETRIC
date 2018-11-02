@@ -567,7 +567,7 @@ class PyMETRIC(PyTSEB):
                                             in_data['p'])
         
         Tr_datum = in_data['T_R1'] + gamma_w * in_data['alt']
-        Ta_datum = in_data['T_A1'] + gamma_w * (in_data['alt'] + in_data['z_T'])
+        Ta_datum = in_data['T_A1'] + gamma_w * in_data['alt']
         
         del gamma_w
 
