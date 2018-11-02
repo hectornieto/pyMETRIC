@@ -33,6 +33,7 @@ from pyTSEB import resistances as res
 from pyTSEB import meteo_utils as met
 from pyTSEB import net_radiation as rad
 from pyMETRIC import METRIC, endmember_search
+import xarray
 
 VI_MAX = 0.95
 
@@ -158,9 +159,6 @@ class PyMETRIC(PyTSEB):
             ('H1', S_P),  # total sensible heat flux (W/m^2)
             ('LE1', S_P),  # total latent heat flux (W/m^2)
             ('G1', S_P),  # ground heat flux (W/m^2)
-            # temperatures (might not be accurate)
-            ('T_sd', S_A),  # End-member temperature of dry soil (Kelvin)
-            ('T_vw', S_A),  # End-member temperature of well-watered vegetation (Kelvin)
             # resistances
             ('R_A1', S_A),  # Aerodynamic resistance to heat transport (s m-1)
             # miscaleneous
@@ -454,6 +452,14 @@ class PyMETRIC(PyTSEB):
             geo,
             prj,
             self.anc_fields)
+        
+        # Save METRIC metadata for netcdf files
+        ext = splitext(outputfile)[1]
+        if ext.lower() == ".nc":
+           self._write_netcdf_metadata(outputfile,
+                                       out_data, 
+                                       geo)
+
         print('Saved Files')
         
         return in_data, out_data
@@ -626,16 +632,16 @@ class PyMETRIC(PyTSEB):
                                                             adjust_rainfall = False)
 
         elif self.endmember_search == 1:
-            [in_data['cold_pixel'], 
-             in_data['hot_pixel']] = endmember_search.esa(in_data['VI'][aoi],
+            [out_data['cold_pixel'], 
+             out_data['hot_pixel']] = endmember_search.esa(in_data['VI'][aoi],
                                                           Tr_datum[aoi],
                                                           cv_ndvi[aoi],
                                                           std_lst[aoi],
                                                           cv_albedo[aoi])
         
         else:
-            [in_data['cold_pixel'],
-             in_data['hot_pixel']] = endmember_search.cimec(in_data['VI'][aoi],
+            [out_data['cold_pixel'],
+             out_data['hot_pixel']] = endmember_search.cimec(in_data['VI'][aoi],
                                                             Tr_datum[aoi],
                                                             out_data['albedo'][aoi],
                                                             in_data['SZA'][aoi],
@@ -649,12 +655,19 @@ class PyMETRIC(PyTSEB):
         
         out_data['ET_r_f_hot'] = in_data['VI'] * out_data['ET_r_f_cold'] \
                                  + (1.0 - in_data['VI']) * in_data['ET_bare_soil'] # Eq. 5 [Allen 2013]
+
+        out_data['T_sd'] = float(Tr_datum[aoi][out_data['hot_pixel']])
+        out_data['T_vw'] = float(Tr_datum[aoi][out_data['cold_pixel']])
+        out_data['VI_sd'] = float(in_data['VI'][aoi][out_data['hot_pixel']])
+        out_data['VI_vw'] = float(in_data['VI'][aoi][out_data['cold_pixel']])
+        
+        out_data['cold_pixel_global'] = get_nested_position(out_data['cold_pixel'], aoi)
+        out_data['hot_pixel_global'] = get_nested_position(out_data['hot_pixel'], aoi)
+
         
         del in_data['SZA'], in_data['VI'], Tr_datum, cv_ndvi, cv_lst, std_lst, cv_albedo
+       
         
-        out_data['T_sd'][:] = float(in_data['T_R1'][aoi][in_data['hot_pixel']])
-        out_data['T_vw'][:] = float(in_data['T_R1'][aoi][in_data['cold_pixel']])
-
         # Model settings
         model_params["calcG_params"] = [self.G_form[0], self.G_form[1][aoi]]
  
@@ -702,8 +715,8 @@ class PyMETRIC(PyTSEB):
                                out_data['d_0'][i],
                                in_data['z_u'][i],
                                in_data['z_T'][i],
-                               in_data['cold_pixel'],
-                               in_data['hot_pixel'],
+                               out_data['cold_pixel'],
+                               out_data['hot_pixel'],
                                out_data['ET_r_f_cold'][i] * out_data['ET0_datum'][i],
                                LE_hot=out_data['ET_r_f_hot'][i] * out_data['ET0_datum'][i],
                                use_METRIC_resistance = self.use_METRIC_resistance,
@@ -783,3 +796,36 @@ class PyMETRIC(PyTSEB):
                 ds.renameVariable("Band"+str(i+1), field)
                 ds[field].grid_mapping = grid_mapping
             ds.close()
+
+    def _write_netcdf_metadata(self, outfile, output, geo):
+        '''Writes the metadata of an output dictionary which keys match the list 
+           in fields to a raster file '''
+
+        # Save the data using GDAL
+        ds = xarray.open_dataset(outfile)
+        ds.attrs["cold_pixel_coordinates"] = output['cold_pixel_global']
+        ds.attrs["hot_pixel_coordinates"] = output['hot_pixel_global']
+        
+        cold_map_coordinates = (geo[0] + geo[1] * output['cold_pixel_global'][1] + geo[2] * output['cold_pixel_global'][0],
+                                geo[3] + geo[4] * output['cold_pixel_global'][1] + geo[5] * output['cold_pixel_global'][0])
+        
+        hot_map_coordinates = (geo[0] + geo[1] * output['hot_pixel_global'][1] + geo[2] * output['hot_pixel_global'][0],
+                                geo[3] + geo[4] * output['hot_pixel_global'][1] + geo[5] * output['hot_pixel_global'][0])
+
+        ds.attrs["cold_map_coordinates"] = cold_map_coordinates
+        ds.attrs["hot_mapl_coordinates"] = hot_map_coordinates
+        
+        ds.attrs['cold_temperature'] = output['T_vw']
+        ds.attrs['hot_temperature'] = output['T_sd']
+        ds.attrs['cold_VI'] = output['VI_vw']
+        ds.attrs['hot_VI'] = output['VI_sd']
+
+        ds.to_netcdf(outfile)
+        
+
+def get_nested_position(local_index, global_mask):
+    
+    G = np.ravel_multi_index(np.where(global_mask), global_mask.shape)
+    global_index = np.unravel_index(G[local_index], global_mask.shape)
+    
+    return global_index
