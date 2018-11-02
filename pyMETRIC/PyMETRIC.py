@@ -660,9 +660,12 @@ class PyMETRIC(PyTSEB):
         out_data['T_vw'] = float(Tr_datum[aoi][out_data['cold_pixel']])
         out_data['VI_sd'] = float(in_data['VI'][aoi][out_data['hot_pixel']])
         out_data['VI_vw'] = float(in_data['VI'][aoi][out_data['cold_pixel']])
-        
         out_data['cold_pixel_global'] = get_nested_position(out_data['cold_pixel'], aoi)
         out_data['hot_pixel_global'] = get_nested_position(out_data['hot_pixel'], aoi)
+        out_data['LE_cold'] = float(out_data['ET_r_f_cold'][out_data['cold_pixel_global']] 
+                                    * out_data['ET0_datum'][out_data['cold_pixel_global']])
+        out_data['LE_hot'] = float(out_data['ET_r_f_hot'][out_data['hot_pixel_global']] 
+                                    * out_data['ET0_datum'][out_data['hot_pixel_global']])
 
         
         del in_data['SZA'], in_data['VI'], Tr_datum, cv_ndvi, cv_lst, std_lst, cv_albedo
@@ -819,7 +822,8 @@ class PyMETRIC(PyTSEB):
         ds.attrs['hot_temperature'] = output['T_sd']
         ds.attrs['cold_VI'] = output['VI_vw']
         ds.attrs['hot_VI'] = output['VI_sd']
-
+        ds.attrs['LE_cold'] = output['LE_cold']
+        ds.attrs['LE_hot'] = output['LE_hot']
         ds.to_netcdf(outfile)
         
 
