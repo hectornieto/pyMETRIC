@@ -23,7 +23,7 @@ u_friction_min = 0.01
 # Maximum number of interations
 ITERATIONS = 100
 # kB coefficient
-kB = 2.3
+kB = 0
 # Stephan Boltzmann constant (W m-2 K-4)
 SB = 5.670373e-8
 # von Karman constant
