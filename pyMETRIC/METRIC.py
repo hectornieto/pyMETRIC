@@ -172,7 +172,7 @@ def METRIC(Tr_K,
     else:
         gamma_w = met.calc_lapse_rate_moist(T_A_K, ea, p)
         Tr_datum = Tr_K + gamma_w * UseDEM
-        Ta_datum = T_A_K + gamma_w * (UseDEM + z_T)
+        Ta_datum = T_A_K + gamma_w * UseDEM
         
     # Calculate the general parameters
     rho = met.calc_rho(p, ea, T_A_K)  # Air density
