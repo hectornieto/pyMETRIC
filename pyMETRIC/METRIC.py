@@ -23,7 +23,7 @@ u_friction_min = 0.01
 # Maximum number of interations
 ITERATIONS = 100
 # kB coefficient
-kB = 0.0
+kB = 2.3
 # Stephan Boltzmann constant (W m-2 K-4)
 SB = 5.670373e-8
 # von Karman constant
@@ -264,10 +264,10 @@ def METRIC(Tr_K,
                             c_p_endmembers)
 
     #dT constants
-    dT_a = (dT_endmembers[1] - dT_endmembers[0]) \
-            / (Tr_datum[hot_pixel] - Tr_datum[cold_pixel])    #Allen 2007 eq 50
+    dT_b = (dT_endmembers[1] - dT_endmembers[0]) \
+            / (Tr_datum[hot_pixel] - Tr_datum[cold_pixel])
     
-    dT_b = (dT_endmembers[1] - dT_a) / Tr_datum[hot_pixel]    #Allen 2007 eq 51
+    dT_a = dT_endmembers[1] - dT_b * Tr_datum[hot_pixel]
     
     #Apply the constant to the whole image
     dT = dT_a + dT_b * Tr_datum                         #Allen 2007 eq. 29
