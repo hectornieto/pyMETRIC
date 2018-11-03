@@ -60,27 +60,28 @@ HERBACEOUS_SEARCH = [res.SAVANNA,
 
 SEARCH_ORDER = (TREE_SEARCH_IGBP, HERBACEOUS_SEARCH)
 LC_SEARCH_STRING = ('tall', 'short')
+ET0_SEARCH_STRING = (1, 0)
 
 class PyMETRIC(PyTSEB):
 
     def __init__(self, parameters):
         if "use_METRIC_resistance" not in parameters.keys():
             parameters["use_METRIC_resistance"] = 1
-        if "tall_reference" not in parameters.keys():
-            parameters["tall_reference"] = 0
         if "ET_bare_soil" not in parameters.keys():
             parameters["ET_bare_soil"] = 0
         if "VI" not in parameters.keys():
             parameters["VI"] = ''
         if "endmember_search" not in parameters.keys():
             parameters["endmember_search"] = 0
-        
-        
+        if "G_tall" not in parameters.keys():
+            parameters["G_tall"] = 0.04   
+        if "G_short" not in parameters.keys():
+            parameters["G_tall"] = 0.10
+
         parameters["resistance_form"] = 0
         super().__init__(parameters)
         
         self.use_METRIC_resistance = int(self.p['use_METRIC_resistance'])
-        self.tall_reference = int(self.p['tall_reference'])
         self.endmember_search = int(self.p['endmember_search'])
 
     def _get_input_structure(self):
@@ -177,7 +178,7 @@ class PyMETRIC(PyTSEB):
             ('u_friction', S_A), # Friction velocity
             ('flag', S_A),  # Quality flag
             ('n_iterations', S_N), # Number of iterations before model converged to stable value
-            ('ET0', S_A)])  
+            ('ET0_datum', S_A)])  
 
         return output_structure
 
@@ -411,9 +412,7 @@ class PyMETRIC(PyTSEB):
             self.G_form[1] = in_data['time']
         # ASCE G ratios
         elif self.G_form[0][0] == 4:  
-            # Set the time in the G_form flag to compute G using ASCE G ratios
-            if self.tall_reference:
-                self.G_form[1] = (0.04, 0.10)
+            self.G_form[1] = (0.04, 0.10)
        
         del in_data['time']
         
@@ -570,28 +569,6 @@ class PyMETRIC(PyTSEB):
         
         del gamma_w
         
-        # Compute potential ET
-        out_data['ET0_datum'] = METRIC.pet_asce(Ta_datum,
-                                          in_data['u'],
-                                          in_data['ea'],
-                                          in_data['p'],
-                                          in_data['S_dn'],
-                                          in_data['z_u'],
-                                          in_data['z_T'],
-                                          f_cd=1,
-                                          reference=self.tall_reference)
-
-        out_data['ET0'] = METRIC.pet_asce(in_data['T_A1'],
-                                          in_data['u'],
-                                          in_data['ea'],
-                                          in_data['p'],
-                                          in_data['S_dn'],
-                                          in_data['z_u'],
-                                          in_data['z_T'],
-                                          f_cd=1,
-                                          reference=self.tall_reference)
-        
-        del in_data['S_dn']
         # Reduce potential ET based on vegetation density based on Allen et al. 2013
         out_data['ET_r_f_cold'] = np.ones(in_data['T_R1'].shape) * 1.05
         out_data['ET_r_f_cold'][in_data['VI'] < VI_MAX] = 1.05/VI_MAX * in_data['VI'][in_data['VI'] < VI_MAX] # Eq. 4 [Allen 2013]
@@ -617,13 +594,24 @@ class PyMETRIC(PyTSEB):
 
         for j, lc_type in enumerate(SEARCH_ORDER):
             aoi = np.zeros(in_data['T_R1'].shape, dtype=bool)
-
-            print('Running METRIC for %s vegetation'%LC_SEARCH_STRING[j])
             
+            print('Running METRIC for %s vegetation'%LC_SEARCH_STRING[j])
+           
             for lc in lc_type:
                 aoi[np.logical_and(in_data['landcover']==lc, mask==1)] = 1
 
-            
+
+            # Compute potential ET
+            out_data['ET0_datum'][aoi] = METRIC.pet_asce(Ta_datum[aoi],
+                                                          in_data['u'][aoi],
+                                                          in_data['ea'][aoi],
+                                                          in_data['p'][aoi],
+                                                          in_data['S_dn'][aoi],
+                                                          in_data['z_u'][aoi],
+                                                          in_data['z_T'][aoi],
+                                                          f_cd=1,
+                                                          reference=ET0_SEARCH_STRING[j])
+           
             print('Automatic search of METRIC hot and cold pixels')
             # Find hot and cold endmembers in the Area of Interest
             if self.endmember_search == 0:
@@ -669,7 +657,7 @@ class PyMETRIC(PyTSEB):
             
             # Model settings
             if self.G_form[0][0] == 4:
-                model_params["calcG_params"] = [self.G_form[0], 
+                model_params["calcG_params"] = [[1], 
                                                  np.ones(in_data['T_R1'][aoi].shape)*self.G_form[1][j]]
             else:
                 model_params["calcG_params"] = [self.G_form[0], self.G_form[1][aoi]]
@@ -806,7 +794,7 @@ class PyMETRIC(PyTSEB):
 
         # Save the data using GDAL
         ds = xarray.open_dataset(outfile)
-        for i, lc_type in enumerate(['tall', 'short']):
+        for i, lc_type in enumerate(LC_SEARCH_STRING):
             ds.attrs["cold_pixel_coordinates_%s"%(lc_type)] = output['cold_pixel_global'][i]
             ds.attrs["hot_pixel_coordinates_%s"%(lc_type)] = output['hot_pixel_global'][i]
             
@@ -817,7 +805,7 @@ class PyMETRIC(PyTSEB):
                                     geo[3] + geo[4] * output['hot_pixel_global'][i][1] + geo[5] * output['hot_pixel_global'][i][0])
     
             ds.attrs["cold_map_coordinates_%s"%(lc_type)] = cold_map_coordinates
-            ds.attrs["hot_mapl_coordinates_%s"%(lc_type)] = hot_map_coordinates
+            ds.attrs["hot_map_coordinates_%s"%(lc_type)] = hot_map_coordinates
             
             ds.attrs['cold_temperature_%s'%(lc_type)] = output['T_vw'][i]
             ds.attrs['hot_temperature_%s'%(lc_type)] = output['T_sd'][i]
