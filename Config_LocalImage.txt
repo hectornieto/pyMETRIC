@@ -101,12 +101,14 @@ z0_soil=0.01
 #0: Use a constant G, usually use G_Constant=0 to ignore the computation of G
 #2: estimate G from Santanello and Friedl with GAmp the maximum ration amplitude, Gphase, the time shift between G and Rn (hours) and Gshape the typical diurnal shape (hours)
 #4: Use ASCE PET G ratios for either tall or short vegetation
-G_form=1
+G_form=4
 G_ratio=0.1
 G_constant=0
 G_amp=0.35
 G_phase=3
 G_shape=24
+G_tall=0.04
+G_short=0.10
 
 #==============================================================================
 # METRIC optons
