@@ -434,7 +434,8 @@ class PyMETRIC(PyTSEB):
             'u_friction',
             'L',
             'R_A1',
-            'flag')
+            'flag', 
+            'ET0_datum')
         
         outdir = dirname(self.p['output_file'])
         if not exists(outdir):
