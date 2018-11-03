@@ -446,6 +446,7 @@ class PyMETRIC(PyTSEB):
             geo,
             prj,
             self.fields)
+
         outputfile = splitext(self.p['output_file'])[0] + '_ancillary' + \
                      splitext(self.p['output_file'])[1]
         self._write_raster_output(
@@ -455,12 +456,6 @@ class PyMETRIC(PyTSEB):
             prj,
             self.anc_fields)
         
-        # Save METRIC metadata for netcdf files
-        ext = splitext(outputfile)[1]
-        if ext.lower() == ".nc":
-           self._write_netcdf_metadata(outputfile,
-                                       out_data, 
-                                       geo)
 
         print('Saved Files')
         
@@ -782,12 +777,17 @@ class PyMETRIC(PyTSEB):
         # to variables (GDAL can't do this). Also it seems that GDAL has
         # problems assigning projection to all the bands so fix that.
         if is_netCDF:
+            
+            
             ds = Dataset(outfile, 'a')
             grid_mapping = ds["Band1"].grid_mapping
             for i, field in enumerate(fields):
                 ds.renameVariable("Band"+str(i+1), field)
                 ds[field].grid_mapping = grid_mapping
             ds.close()
+
+            self._write_netcdf_metadata(outfile, output, geo) # Save METRIC metadata for netcdf files
+
 
     def _write_netcdf_metadata(self, outfile, output, geo):
         '''Writes the metadata of an output dictionary which keys match the list 
@@ -815,8 +815,8 @@ class PyMETRIC(PyTSEB):
             ds.attrs['LE_cold_%s'%(lc_type)] = output['LE_cold'][i]
             ds.attrs['LE_hot_%s'%(lc_type)] = output['LE_hot'][i]
         
-        ds.to_netcdf(outfile)
-        
+        ds.to_netcdf(outfile, mode ='a')
+        ds.close()
 
 def get_nested_position(local_index, global_mask):
     
