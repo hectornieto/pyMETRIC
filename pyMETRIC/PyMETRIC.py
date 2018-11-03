@@ -48,14 +48,18 @@ TREE_SEARCH_IGBP = [res.CONIFER_E,
                     res.SHRUB_C,
                     res.SHRUB_O, 
                     res.CROP_MOSAIC,
-                    res.BARREN]
+                    res.BARREN,
+                    res.WETLAND]
 
 HERBACEOUS_SEARCH = [res.SAVANNA,
                      res.GRASS,
                      res.CROP,
                      res.CROP_MOSAIC,
-                     res.BARREN]
+                     res.BARREN,
+                     res.WETLAND]
 
+SEARCH_ORDER = (TREE_SEARCH_IGBP, HERBACEOUS_SEARCH)
+LC_SEARCH_STRING = ('tall', 'short')
 
 class PyMETRIC(PyTSEB):
 
@@ -409,9 +413,7 @@ class PyMETRIC(PyTSEB):
         elif self.G_form[0][0] == 4:  
             # Set the time in the G_form flag to compute G using ASCE G ratios
             if self.tall_reference:
-                self.G_form[1] = np.ones(dims) * 0.04
-            else:
-                self.G_form[1] = np.ones(dims) * 0.10
+                self.G_form[1] = (0.04, 0.10)
        
         del in_data['time']
         
@@ -504,19 +506,10 @@ class PyMETRIC(PyTSEB):
         out_data['S_dn_dif'] = in_data['S_dn'] * out_data['Skyl']
         
         del difvis, difnir, fvis, fnir
-        
-        aoi = np.zeros(in_data['T_R1'].shape, dtype=bool)
 
-        if self.tall_reference:
-            for lc in TREE_SEARCH_IGBP:
-                aoi[np.logical_and(in_data['landcover']==lc, mask==1)] = 1
-        else:
-            for lc in HERBACEOUS_SEARCH:
-                aoi[np.logical_and(in_data['landcover']==lc, mask==1)] = 1
-        
         # ======================================
         # NEt radiation for bare soil
-        noVegPixels = np.logical_and(in_data['LAI'] == 0, aoi == 1)
+        noVegPixels = np.logical_and(in_data['LAI'] == 0, mask == 1)
         # Calculate roughness
         out_data['z_0M'][noVegPixels] = in_data['z0_soil'][noVegPixels]
         out_data['d_0'][noVegPixels] = 0
@@ -531,7 +524,8 @@ class PyMETRIC(PyTSEB):
         # ======================================
         # Then process vegetated cases
         # Calculate roughness
-        i = ~noVegPixels
+        i = np.logical_and(in_data['LAI'] > 0, mask == 1)
+        
         out_data['z_0M'][i], out_data['d_0'][i] = \
             res.calc_roughness(in_data['LAI'][i],
                                in_data['h_C'][i],
@@ -539,7 +533,7 @@ class PyMETRIC(PyTSEB):
                                landcover=in_data['landcover'][i],
                                f_c=in_data['f_c'][i])
         
-        del in_data['h_C'], in_data['w_C'], in_data['landcover'], in_data['f_c']
+        del in_data['h_C'], in_data['w_C'], in_data['f_c']
         
         Sn_C1, Sn_S1 = rad.calc_Sn_Campbell(in_data['LAI'][i],
                                                       in_data['SZA'][i],
@@ -564,10 +558,9 @@ class PyMETRIC(PyTSEB):
         
         del in_data['emis_C'], in_data['emis_S']
 
-        out_data['albedo'] = 1 - out_data['R_ns1']/in_data['S_dn']
+        out_data['albedo'] = 1.0 - out_data['R_ns1']/in_data['S_dn']
 
-        print('Automatic search of METRIC hot and cold pixels')
-        # Find hot and cold endmembers in the Area of Interest
+        # Compute normalized temperatures by adiabatic correction
         gamma_w = met.calc_lapse_rate_moist(in_data['T_A1'],
                                             in_data['ea'],
                                             in_data['p'])
@@ -576,23 +569,8 @@ class PyMETRIC(PyTSEB):
         Ta_datum = in_data['T_A1'] + gamma_w * in_data['alt']
         
         del gamma_w
-
-# =============================================================================
-#         # Estimate cloudiness factor
-#         [Rdirvis,
-#          Rdifvis,
-#          Rdirnir,
-#          Rdifnir] = rad.calc_potential_irradiance_weiss(in_data['SZA'],
-#                                                         press=in_data['p'])
-#         
-#         S_dn_0 = Rdirvis + Rdifvis + Rdirnir + Rdifnir
-#         
-#         
-#         f_cd = METRIC.calc_cloudiness(in_data['S_dn'], S_dn_0)
-# 
-#         del Rdirvis, Rdifvis, Rdirnir, Rdifnir, S_dn_0
-#         
-# =============================================================================
+        
+        # Compute potential ET
         out_data['ET0_datum'] = METRIC.pet_asce(Ta_datum,
                                           in_data['u'],
                                           in_data['ea'],
@@ -614,41 +592,6 @@ class PyMETRIC(PyTSEB):
                                           reference=self.tall_reference)
         
         del in_data['S_dn']
-        
-        # Compute spatial homogeneity metrics
-        cv_ndvi, _, _ = endmember_search.moving_cv_filter(in_data['VI'], (10, 10))
-        cv_lst, _, std_lst = endmember_search.moving_cv_filter(Tr_datum, (10, 10))
-        cv_albedo,_, _ = endmember_search.moving_cv_filter(out_data['albedo'], (10, 10))
-        
-        # Find hot/cold endmembers
-        if self.endmember_search == 0:
-            [in_data['cold_pixel'],
-             in_data['hot_pixel']] = endmember_search.cimec(in_data['VI'][aoi],
-                                                            Tr_datum[aoi],
-                                                            out_data['albedo'][aoi],
-                                                            in_data['SZA'][aoi],
-                                                            cv_ndvi[aoi],
-                                                            cv_lst[aoi],
-                                                            adjust_rainfall = False)
-
-        elif self.endmember_search == 1:
-            [out_data['cold_pixel'], 
-             out_data['hot_pixel']] = endmember_search.esa(in_data['VI'][aoi],
-                                                          Tr_datum[aoi],
-                                                          cv_ndvi[aoi],
-                                                          std_lst[aoi],
-                                                          cv_albedo[aoi])
-        
-        else:
-            [out_data['cold_pixel'],
-             out_data['hot_pixel']] = endmember_search.cimec(in_data['VI'][aoi],
-                                                            Tr_datum[aoi],
-                                                            out_data['albedo'][aoi],
-                                                            in_data['SZA'][aoi],
-                                                            cv_ndvi[aoi],
-                                                            cv_lst[aoi],
-                                                            adjust_rainfall = False)
-
         # Reduce potential ET based on vegetation density based on Allen et al. 2013
         out_data['ET_r_f_cold'] = np.ones(in_data['T_R1'].shape) * 1.05
         out_data['ET_r_f_cold'][in_data['VI'] < VI_MAX] = 1.05/VI_MAX * in_data['VI'][in_data['VI'] < VI_MAX] # Eq. 4 [Allen 2013]
@@ -656,28 +599,85 @@ class PyMETRIC(PyTSEB):
         out_data['ET_r_f_hot'] = in_data['VI'] * out_data['ET_r_f_cold'] \
                                  + (1.0 - in_data['VI']) * in_data['ET_bare_soil'] # Eq. 5 [Allen 2013]
 
-        out_data['T_sd'] = float(Tr_datum[aoi][out_data['hot_pixel']])
-        out_data['T_vw'] = float(Tr_datum[aoi][out_data['cold_pixel']])
-        out_data['VI_sd'] = float(in_data['VI'][aoi][out_data['hot_pixel']])
-        out_data['VI_vw'] = float(in_data['VI'][aoi][out_data['cold_pixel']])
-        out_data['cold_pixel_global'] = get_nested_position(out_data['cold_pixel'], aoi)
-        out_data['hot_pixel_global'] = get_nested_position(out_data['hot_pixel'], aoi)
-        out_data['LE_cold'] = float(out_data['ET_r_f_cold'][out_data['cold_pixel_global']] 
-                                    * out_data['ET0_datum'][out_data['cold_pixel_global']])
-        out_data['LE_hot'] = float(out_data['ET_r_f_hot'][out_data['hot_pixel_global']] 
-                                    * out_data['ET0_datum'][out_data['hot_pixel_global']])
+        # Compute spatial homogeneity metrics
+        cv_ndvi, _, _ = endmember_search.moving_cv_filter(in_data['VI'], (10, 10))
+        cv_lst, _, std_lst = endmember_search.moving_cv_filter(Tr_datum, (10, 10))
+        cv_albedo,_, _ = endmember_search.moving_cv_filter(out_data['albedo'], (10, 10))
+        
+        
+        # Create METRIC output metadata
+        out_data['T_sd'] = []
+        out_data['T_vw'] = []
+        out_data['VI_sd'] = []
+        out_data['VI_vw'] = []
+        out_data['cold_pixel_global'] = []
+        out_data['hot_pixel_global'] = []
+        out_data['LE_cold'] = []
+        out_data['LE_hot'] = []
 
-        
-        del in_data['SZA'], in_data['VI'], Tr_datum, cv_ndvi, cv_lst, std_lst, cv_albedo
-       
-        
-        # Model settings
-        model_params["calcG_params"] = [self.G_form[0], self.G_form[1][aoi]]
- 
-        # Other fluxes for vegetation
-        self._call_flux_model(in_data, out_data, model_params, aoi)
-        
-        del in_data, model_params, aoi
+        for j, lc_type in enumerate(SEARCH_ORDER):
+            aoi = np.zeros(in_data['T_R1'].shape, dtype=bool)
+
+            print('Running METRIC for %s vegetation'%LC_SEARCH_STRING[j])
+            
+            for lc in lc_type:
+                aoi[np.logical_and(in_data['landcover']==lc, mask==1)] = 1
+
+            
+            print('Automatic search of METRIC hot and cold pixels')
+            # Find hot and cold endmembers in the Area of Interest
+            if self.endmember_search == 0:
+                [in_data['cold_pixel'],
+                 in_data['hot_pixel']] = endmember_search.cimec(in_data['VI'][aoi],
+                                                                Tr_datum[aoi],
+                                                                out_data['albedo'][aoi],
+                                                                in_data['SZA'][aoi],
+                                                                cv_ndvi[aoi],
+                                                                cv_lst[aoi],
+                                                                adjust_rainfall = False)
+    
+            elif self.endmember_search == 1:
+                [out_data['cold_pixel'], 
+                 out_data['hot_pixel']] = endmember_search.esa(in_data['VI'][aoi],
+                                                              Tr_datum[aoi],
+                                                              cv_ndvi[aoi],
+                                                              std_lst[aoi],
+                                                              cv_albedo[aoi])
+            
+            else:
+                [out_data['cold_pixel'],
+                 out_data['hot_pixel']] = endmember_search.cimec(in_data['VI'][aoi],
+                                                                Tr_datum[aoi],
+                                                                out_data['albedo'][aoi],
+                                                                in_data['SZA'][aoi],
+                                                                cv_ndvi[aoi],
+                                                                cv_lst[aoi],
+                                                                adjust_rainfall = False)
+    
+    
+            out_data['T_sd'].append(float(Tr_datum[aoi][out_data['hot_pixel']]))
+            out_data['T_vw'].append(float(Tr_datum[aoi][out_data['cold_pixel']]))
+            out_data['VI_sd'].append(float(in_data['VI'][aoi][out_data['hot_pixel']]))
+            out_data['VI_vw'].append(float(in_data['VI'][aoi][out_data['cold_pixel']]))
+            out_data['cold_pixel_global'].append(get_nested_position(out_data['cold_pixel'], aoi))
+            out_data['hot_pixel_global'].append(get_nested_position(out_data['hot_pixel'], aoi))
+            out_data['LE_cold'].append(float(out_data['ET_r_f_cold'][out_data['cold_pixel_global'][j]] 
+                                        * out_data['ET0_datum'][out_data['cold_pixel_global'][j]]))
+            out_data['LE_hot'].append(float(out_data['ET_r_f_hot'][out_data['hot_pixel_global'][j]] 
+                                        * out_data['ET0_datum'][out_data['hot_pixel_global'][j]]))
+    
+            
+            # Model settings
+            if self.G_form[0][0] == 4:
+                model_params["calcG_params"] = [self.G_form[0], 
+                                                 np.ones(in_data['T_R1'][aoi].shape)*self.G_form[1][j]]
+            else:
+                model_params["calcG_params"] = [self.G_form[0], self.G_form[1][aoi]]
+     
+            # Other fluxes for vegetation
+            self._call_flux_model(in_data, out_data, model_params, aoi)
+           
+        del in_data, model_params, aoi, Tr_datum, cv_ndvi, cv_lst, std_lst, cv_albedo
 
         # Calculate the global net radiation
         out_data['R_n1'] = out_data['R_ns1'] + out_data['R_nl1']
@@ -806,24 +806,26 @@ class PyMETRIC(PyTSEB):
 
         # Save the data using GDAL
         ds = xarray.open_dataset(outfile)
-        ds.attrs["cold_pixel_coordinates"] = output['cold_pixel_global']
-        ds.attrs["hot_pixel_coordinates"] = output['hot_pixel_global']
+        for i, lc_type in enumerate(['tall', 'short']):
+            ds.attrs["cold_pixel_coordinates_%s"%(lc_type)] = output['cold_pixel_global'][i]
+            ds.attrs["hot_pixel_coordinates_%s"%(lc_type)] = output['hot_pixel_global'][i]
+            
+            cold_map_coordinates = (geo[0] + geo[1] * output['cold_pixel_global'][i][1] + geo[2] * output['cold_pixel_global'][i][0],
+                                    geo[3] + geo[4] * output['cold_pixel_global'][i][1] + geo[5] * output['cold_pixel_global'][i][0])
+            
+            hot_map_coordinates = (geo[0] + geo[1] * output['hot_pixel_global'][i][1] + geo[2] * output['hot_pixel_global'][i][0],
+                                    geo[3] + geo[4] * output['hot_pixel_global'][i][1] + geo[5] * output['hot_pixel_global'][i][0])
+    
+            ds.attrs["cold_map_coordinates_%s"%(lc_type)] = cold_map_coordinates
+            ds.attrs["hot_mapl_coordinates_%s"%(lc_type)] = hot_map_coordinates
+            
+            ds.attrs['cold_temperature_%s'%(lc_type)] = output['T_vw'][i]
+            ds.attrs['hot_temperature_%s'%(lc_type)] = output['T_sd'][i]
+            ds.attrs['cold_VI_%s'%(lc_type)] = output['VI_vw'][i]
+            ds.attrs['hot_VI_%s'%(lc_type)] = output['VI_sd'][i]
+            ds.attrs['LE_cold_%s'%(lc_type)] = output['LE_cold'][i]
+            ds.attrs['LE_hot_%s'%(lc_type)] = output['LE_hot'][i]
         
-        cold_map_coordinates = (geo[0] + geo[1] * output['cold_pixel_global'][1] + geo[2] * output['cold_pixel_global'][0],
-                                geo[3] + geo[4] * output['cold_pixel_global'][1] + geo[5] * output['cold_pixel_global'][0])
-        
-        hot_map_coordinates = (geo[0] + geo[1] * output['hot_pixel_global'][1] + geo[2] * output['hot_pixel_global'][0],
-                                geo[3] + geo[4] * output['hot_pixel_global'][1] + geo[5] * output['hot_pixel_global'][0])
-
-        ds.attrs["cold_map_coordinates"] = cold_map_coordinates
-        ds.attrs["hot_mapl_coordinates"] = hot_map_coordinates
-        
-        ds.attrs['cold_temperature'] = output['T_vw']
-        ds.attrs['hot_temperature'] = output['T_sd']
-        ds.attrs['cold_VI'] = output['VI_vw']
-        ds.attrs['hot_VI'] = output['VI_sd']
-        ds.attrs['LE_cold'] = output['LE_cold']
-        ds.attrs['LE_hot'] = output['LE_hot']
         ds.to_netcdf(outfile)
         
 

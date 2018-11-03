@@ -116,4 +116,3 @@ G_shape=24
 # 1 : Bhattarai et al. 2017: exhaustive search algorithm (ESA)
 endmember_search=1 
 ETrF_bare=0
-tall_reference=0
