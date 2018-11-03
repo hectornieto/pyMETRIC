@@ -90,6 +90,10 @@ class METRICConfigFileInterface():
                                          float(config_data['G_phase']),
                                          float(config_data['G_shape'])],
                                          12.0]
+            elif int(config_data['G_form']) == 4:
+                self.params['G_form'] = [[4],
+                                         (float(config_data['G_tall']), 
+                                          float(config_data['G_short']))]
 
             self.params['output_file'] = config_data['output_file']
 
@@ -115,4 +119,4 @@ class METRICConfigFileInterface():
             model.process_local_image()
             
         else:
-            print("pyESVEP will not be run due to errors in the input data.")
+            print("pyMETRIC will not be run due to errors in the input data.")
