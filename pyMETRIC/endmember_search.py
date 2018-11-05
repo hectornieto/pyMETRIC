@@ -176,6 +176,8 @@ def esa(vi_array,
                                          std_lst < 1.5))
     
     print('Found %s homogeneous pixels'%np.sum(homogeneous))
+    if np.sum(homogeneous) == 0:
+        return None, None
     # Step 2 Filter outliers by Building ndvi and lst histograms
     lst_min, lst_max, vi_min, vi_max = histogram_fiter(vi_array, lst_array)    
 
@@ -187,16 +189,22 @@ def esa(vi_array,
                                       vi_array <= vi_max))
     
     print('Keep %s pixels after outlier removal'%np.sum(mask))
+    if np.sum(mask) == 0:
+        return None, None
 
     # Step 3. Interative search of cold pixel
     print('Iterative search of candidate cold pixels')
     cold_pixels = incremental_search(vi_array, lst_array, mask, is_cold = True)
     print('Found %s candidate cold pixels'%np.sum(cold_pixels))
+    if np.sum(cold_pixels) == 0:
+        return None, None
 
 
     print('Iterative search of candidate hot pixels')
     hot_pixels = incremental_search(vi_array, lst_array, mask, is_cold = False)            
     print('Found %s candidate hot pixels'%np.sum(hot_pixels))
+    if np.sum(hot_pixels) == 0:
+        return None, None
 
 
     # Step 4. Rank the pixel candidates

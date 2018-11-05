@@ -638,7 +638,17 @@ class PyMETRIC(PyTSEB):
                                                                 cv_lst[aoi],
                                                                 adjust_rainfall = False)
     
-    
+            if out_data['cold_pixel'] == None or out_data['hot_pixel'] == None:
+                out_data['T_sd'].append(-9999)
+                out_data['T_vw'].append(-9999)
+                out_data['VI_sd'].append(-9999)
+                out_data['VI_vw'].append(-9999)
+                out_data['cold_pixel_global'].append(-9999)
+                out_data['hot_pixel_global'].append(-9999)
+                out_data['LE_cold'].append(-9999)
+                out_data['LE_hot'].append(-9999)
+                continue
+
             out_data['T_sd'].append(float(Tr_datum[aoi][out_data['hot_pixel']]))
             out_data['T_vw'].append(float(Tr_datum[aoi][out_data['cold_pixel']]))
             out_data['VI_sd'].append(float(in_data['VI'][aoi][out_data['hot_pixel']]))
