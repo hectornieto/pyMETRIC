@@ -809,12 +809,18 @@ class PyMETRIC(PyTSEB):
             ds.attrs["cold_pixel_coordinates_%s"%(lc_type)] = output['cold_pixel_global'][i]
             ds.attrs["hot_pixel_coordinates_%s"%(lc_type)] = output['hot_pixel_global'][i]
             
-            cold_map_coordinates = (geo[0] + geo[1] * output['cold_pixel_global'][i][1] + geo[2] * output['cold_pixel_global'][i][0],
-                                    geo[3] + geo[4] * output['cold_pixel_global'][i][1] + geo[5] * output['cold_pixel_global'][i][0])
+            if output['cold_pixel_global'] == -9999:
+                cold_map_coordinates = -9999
+            else:
+                cold_map_coordinates = (geo[0] + geo[1] * output['cold_pixel_global'][i][1] + geo[2] * output['cold_pixel_global'][i][0],
+                                        geo[3] + geo[4] * output['cold_pixel_global'][i][1] + geo[5] * output['cold_pixel_global'][i][0])
             
-            hot_map_coordinates = (geo[0] + geo[1] * output['hot_pixel_global'][i][1] + geo[2] * output['hot_pixel_global'][i][0],
-                                    geo[3] + geo[4] * output['hot_pixel_global'][i][1] + geo[5] * output['hot_pixel_global'][i][0])
-    
+            if output['hot_pixel_global'] == -9999:
+                hot_map_coordinates = -9999
+            else:
+                hot_map_coordinates = (geo[0] + geo[1] * output['hot_pixel_global'][i][1] + geo[2] * output['hot_pixel_global'][i][0],
+                                        geo[3] + geo[4] * output['hot_pixel_global'][i][1] + geo[5] * output['hot_pixel_global'][i][0])
+        
             ds.attrs["cold_map_coordinates_%s"%(lc_type)] = cold_map_coordinates
             ds.attrs["hot_map_coordinates_%s"%(lc_type)] = hot_map_coordinates
             
