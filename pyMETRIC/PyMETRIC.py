@@ -77,6 +77,8 @@ class PyMETRIC(PyTSEB):
             parameters["G_tall"] = 0.04   
         if "G_short" not in parameters.keys():
             parameters["G_tall"] = 0.10
+        if "subset_output" not in parameters.keys():
+            parameters["subset_output"] = []
 
         parameters["resistance_form"] = 0
         super().__init__(parameters)
@@ -110,6 +112,7 @@ class PyMETRIC(PyTSEB):
         input_fields["tall_reference"] = "Predominant land cover are trees"
         input_fields['alt'] = "Digital Elevation Model"
         input_fields['endmember_search'] = "Endmember search algorithm"
+        input_fields['subset_output'] = "Subset coordinates for saving output"
         return input_fields
 
     def _set_special_model_input(self, field, dims):
@@ -440,12 +443,29 @@ class PyMETRIC(PyTSEB):
         outdir = dirname(self.p['output_file'])
         if not exists(outdir):
             mkdir(outdir)
+          
+        geo_father = []    
+        if 'subset_output' in self.p:
+            geo_father = geo
+            subset, geo = self._get_subset(self.p["subset_output"], prj, geo)
+            dims = (subset[3], subset[2])
+
+            
+            for field in self.fields:
+                out_data[field] = out_data[field][subset[1]:subset[1]+subset[3],
+                                                  subset[0]:subset[0]+subset[2]]
+            for field in self.anc_fields:
+                out_data[field] = out_data[field][subset[1]:subset[1]+subset[3],
+                                                  subset[0]:subset[0]+subset[2]]
+                
+            
         self._write_raster_output(
             self.p['output_file'],
             out_data,
             geo,
             prj,
-            self.fields)
+            self.fields,
+            geo_father=geo_father)
 
         outputfile = splitext(self.p['output_file'])[0] + '_ancillary' + \
                      splitext(self.p['output_file'])[1]
@@ -454,7 +474,8 @@ class PyMETRIC(PyTSEB):
             out_data,
             geo,
             prj,
-            self.anc_fields)
+            self.anc_fields,
+            geo_father=geo_father)
         
 
         print('Saved Files')
@@ -752,7 +773,7 @@ class PyMETRIC(PyTSEB):
                 
         return success, array
 
-    def _write_raster_output(self, outfile, output, geo, prj, fields):
+    def _write_raster_output(self, outfile, output, geo, prj, fields, geo_father = []):
         '''Writes the arrays of an output dictionary which keys match the list 
            in fields to a raster file '''
 
@@ -795,7 +816,9 @@ class PyMETRIC(PyTSEB):
                 ds.renameVariable("Band"+str(i+1), field)
                 ds[field].grid_mapping = grid_mapping
             ds.close()
-
+            
+            if geo_father:
+                geo = geo_father
             self._write_netcdf_metadata(outfile, output, geo) # Save METRIC metadata for netcdf files
 
 
@@ -806,8 +829,8 @@ class PyMETRIC(PyTSEB):
         # Save the data using GDAL
         ds = xarray.open_dataset(outfile)
         for i, lc_type in enumerate(LC_SEARCH_STRING):
-            ds.attrs["cold_pixel_coordinates_%s"%(lc_type)] = output['cold_pixel_global'][i]
-            ds.attrs["hot_pixel_coordinates_%s"%(lc_type)] = output['hot_pixel_global'][i]
+            #ds.attrs["cold_pixel_coordinates_%s"%(lc_type)] = output['cold_pixel_global'][i]
+            #ds.attrs["hot_pixel_coordinates_%s"%(lc_type)] = output['hot_pixel_global'][i]
             
             if output['cold_pixel_global'][i] == -9999:
                 cold_map_coordinates = -9999
