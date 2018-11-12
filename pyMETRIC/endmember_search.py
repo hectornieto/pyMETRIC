@@ -301,11 +301,13 @@ def incremental_search(vi_array, lst_array, mask, is_cold = True):
             # If we reach here is because not enought pixels were found
             # Incresa the range of percentiles
             step += 5
+            if step > 100:
+                return None
     else:
         while True:
-            for n_lst in range(1,11):
-                for n_vi in range(1,11):
-                    print('Searching hot pixels the %s %% maximum LST and %s %% minimum VI'%(n_lst, n_vi))
+            for n_lst in range(1,11 + step):
+                for n_vi in range(1,11 + step):
+                    print('Searching hot pixels from the %s %% maximum LST and %s %% minimum VI'%(n_lst, n_vi))
                     vi_low = np.percentile(vi_array[mask], n_vi)
                     lst_hot = np.percentile(lst_array[mask], 100 - n_lst)
                     hot_index = np.logical_and.reduce((mask,
@@ -317,7 +319,9 @@ def incremental_search(vi_array, lst_array, mask, is_cold = True):
             # If we reach here is because not enought pixels were found
             # Incresa the range of percentiles
             step += 5
-            
+            if step > 100:
+                return None
+
 def moving_cv_filter(data, window):
     
     ''' window is a 2 element tuple with the moving window dimensions (rows, columns)'''
