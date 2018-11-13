@@ -155,8 +155,8 @@ def METRIC(Tr_K,
                         [Tr_K] * 12)
 
     # Create the output variables
-    [flag, Ln, LE, H, G, R_A, iterations] = [np.zeros(Tr_K.shape)+np.NaN for i in range(7)]
-
+    [Ln, LE, H, G, R_A, iterations] = [np.zeros(Tr_K.shape)+np.NaN for i in range(6)]
+    flag = np.zeros(Tr_K.shape, dtype = np.byte)
     # iteration of the Monin-Obukhov length
     if isinstance(UseL, bool):
         # Initially assume stable atmospheric conditions and set variables for

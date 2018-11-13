@@ -608,7 +608,7 @@ class PyMETRIC(PyTSEB):
         out_data['hot_pixel_global'] = []
         out_data['LE_cold'] = []
         out_data['LE_hot'] = []
-
+        out_data['flag'] = np.ones(in_data['T_R1'].shape, dtype=np.byte)*255
         for j, lc_type in enumerate(SEARCH_ORDER):
             aoi = np.zeros(in_data['T_R1'].shape, dtype=bool)
             
