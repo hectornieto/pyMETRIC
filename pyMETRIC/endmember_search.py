@@ -301,7 +301,7 @@ def incremental_search(vi_array, lst_array, mask, is_cold = True):
             # If we reach here is because not enought pixels were found
             # Incresa the range of percentiles
             step += 5
-            if step > 95:
+            if step > 90:
                 return None
     else:
         while True:
@@ -319,7 +319,7 @@ def incremental_search(vi_array, lst_array, mask, is_cold = True):
             # If we reach here is because not enought pixels were found
             # Incresa the range of percentiles
             step += 5
-            if step > 95:
+            if step > 90:
                 return None
 
 def moving_cv_filter(data, window):
