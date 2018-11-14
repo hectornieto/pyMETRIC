@@ -302,7 +302,7 @@ def incremental_search(vi_array, lst_array, mask, is_cold = True):
             # Incresa the range of percentiles
             step += 5
             if step > 90:
-                return None
+                return []
     else:
         while True:
             for n_lst in range(1,11 + step):
@@ -320,7 +320,7 @@ def incremental_search(vi_array, lst_array, mask, is_cold = True):
             # Incresa the range of percentiles
             step += 5
             if step > 90:
-                return None
+                return []
 
 def moving_cv_filter(data, window):
     
