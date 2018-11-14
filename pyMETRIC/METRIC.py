@@ -151,7 +151,7 @@ def METRIC(Tr_K,
                          LE_cold,
                          LE_hot,
                          calcG_params[1]],
-                        [Tr_K] * 12)
+                        [Tr_K] * 14)
 
     # Create the output variables
     [Ln, LE, H, G, R_A, iterations] = [np.zeros(Tr_K.shape)+np.NaN for i in range(6)]
