@@ -11,9 +11,9 @@ import pyTSEB.resistances as res
 import pyTSEB.MO_similarity as MO
 import pyTSEB.TSEB as tseb
 
-#==============================================================================
+# ==============================================================================
 # List of constants used in TSEB model and sub-routines
-#==============================================================================
+# ==============================================================================
 # Change threshold in  Monin-Obukhov lengh to stop the iterations
 L_thres = 0.00001
 # Change threshold in  friction velocity to stop the iterations
@@ -31,8 +31,6 @@ KARMAN = 0.41
 
 TALL_REFERENCE = 1
 SHORT_REFERENCE = 0
-
-F_INVALID = 255
 
 
 def METRIC(Tr_K,
@@ -76,8 +74,6 @@ def METRIC(Tr_K,
         Downwelling longwave radiation (W m-2)
     emis : float
         Surface emissivity.
-    albedo : float
-        Surface broadband albedo.
     z_0M : float
         Aerodynamic surface roughness length for momentum transfer (m).
     d_0 : float
@@ -86,7 +82,7 @@ def METRIC(Tr_K,
         Height of measurement of windspeed (m).
     z_T : float
         Height of measurement of air temperature (m).
-    col_pixel : tuple
+    cold_pixel : tuple
         pixel coordinates (row, col) for the cold endmember
     hot_pixel : tuple
         pixel coordinates (row, col) for the hot endmember
@@ -138,6 +134,8 @@ def METRIC(Tr_K,
      d_0,
      z_u,
      z_T,
+     LE_cold,
+     LE_hot,
      calcG_array) = map(tseb._check_default_parameter_size,
                         [T_A_K,
                          u,
@@ -150,6 +148,8 @@ def METRIC(Tr_K,
                          d_0,
                          z_u,
                          z_T,
+                         LE_cold,
+                         LE_hot,
                          calcG_params[1]],
                         [Tr_K] * 12)
 
@@ -176,7 +176,6 @@ def METRIC(Tr_K,
     # Calculate the general parameters
     rho = met.calc_rho(p, ea, T_A_K)  # Air density
     c_p = met.calc_c_p(p, ea)  # Heat capacity of air
-    # Calculate the general parameters
     rho_datum = met.calc_rho(p, ea, Ta_datum)  # Air density
 
     # Calc initial Monin Obukhov variables
@@ -211,7 +210,7 @@ def METRIC(Tr_K,
     H_endmembers = calc_H_residual(Rn_endmembers, G_endmembers, LE=LE_endmembers)
 
     # ==============================================================================
-    #     HOT and COLD PIXEL ITERATIONS FOR MONIN-OBUKHOV LENGTH AND H TO CONVERGE
+    #     HOT and COLD PIXEL ITERATIONS FOR MONIN-OBUKHOV LENGTH TO CONVERGE
     # ==============================================================================
     # Initially assume stable atmospheric conditions and set variables for
     L_old = np.ones(2)
@@ -221,9 +220,7 @@ def METRIC(Tr_K,
             break
 
         if isinstance(UseL, bool):
-            # Now L can be recalculated and the difference between iterations
-            # derived
-
+            # Recaulculate L and the difference between iterations
             L_endmembers = MO.calc_L(u_friction_endmembers,
                                      Ta_datum_endmembers,
                                      rho_datum_endmembers,
@@ -245,7 +242,11 @@ def METRIC(Tr_K,
 
     # Hot and Cold aerodynamic resistances
     if use_METRIC_resistance is True:
-        R_A_endmembers = calc_R_A_METRIC(u_friction_endmembers, L_endmembers)
+        R_A_params = {"z_T": np.array([2.0, 2.0]),
+                      "u_friction": u_friction_endmembers,
+                      "L": L_endmembers,
+                      "d_0": np.array([0.0, 0.0]),
+                      "z_0H": np.array([0.1, 0.1])}
     else:
         R_A_params = {"z_T": z_T_endmembers,
                       "u_friction": u_friction_endmembers,
@@ -253,7 +254,7 @@ def METRIC(Tr_K,
                       "d_0": d_0_endmembers,
                       "z_0H": z_0H_endmembers}
 
-        R_A_endmembers, _, _ = tseb.calc_resistances(tseb.KUSTAS_NORMAN_1999, {"R_A": R_A_params})
+    R_A_endmembers, _, _ = tseb.calc_resistances(tseb.KUSTAS_NORMAN_1999, {"R_A": R_A_params})
 
     # Calculate the temperature gradients
     dT_endmembers = calc_dT(H_endmembers,
@@ -262,9 +263,10 @@ def METRIC(Tr_K,
                             c_p_endmembers)
 
     # dT constants
-    dT_b = (dT_endmembers[1] - dT_endmembers[0]) / (Tr_datum[hot_pixel] - Tr_datum[cold_pixel])
-
-    dT_a = dT_endmembers[1] - dT_b * Tr_datum[hot_pixel]
+    # Allen 2007 eq. 50
+    dT_a = (dT_endmembers[1] - dT_endmembers[0]) / (Tr_datum[hot_pixel] - Tr_datum[cold_pixel])
+    # Allen 2007 eq. 51
+    dT_b = (dT_endmembers[1] - dT_a) / Tr_datum[hot_pixel]
 
     # Apply the constant to the whole image
     dT = dT_a + dT_b * Tr_datum                         # Allen 2007 eq. 29
@@ -284,8 +286,11 @@ def METRIC(Tr_K,
         i = L_diff >= L_thres
 
         if use_METRIC_resistance is True:
-            R_A[i] = calc_R_A_METRIC(u_friction[i], L[i])
-
+            R_A_params = {"z_T": np.array([2.0, 2.0]),
+                          "u_friction": u_friction[i],
+                          "L": L[i],
+                          "d_0": np.array([0.0, 0.0]),
+                          "z_0H": np.array([0.1, 0.1])}
         else:
             R_A_params = {"z_T": z_T[i],
                           "u_friction": u_friction[i],
@@ -318,7 +323,7 @@ def METRIC(Tr_K,
 
 
 def calc_dT(H, R_AH, rho, c_p):
-
+    # Allen 2007 eq. 46 and 49
     dT = H * R_AH / (rho * c_p)
     return dT
 
@@ -568,49 +573,3 @@ def wind_profile(u, z_u, z_0M, d, z):
     u_z = u * np.log((z - d)/z_0M) / np.log((z_u - d)/z_0M)
 
     return u_z
-
-
-def calc_R_A_METRIC(ustar, L):
-    ''' Estimates the aerodynamic resistance to heat transport based on the
-    MO similarity theory.
-
-    Parameters
-    ----------
-    z_T : float or array
-        air temperature measurement height (m).
-    ustar : float
-        float or array velocity (m s-1).
-    L : float or array
-        Monin Obukhov Length for stability
-    d_0 : float or array
-        zero-plane displacement height (m).
-    z_0M : float or array
-        aerodynamic roughness length for momentum trasport (m).
-    z_0H : float or array
-        aerodynamic roughness length for heat trasport (m).
-
-    Returns
-    -------
-    R_A : float or array
-        aerodyamic resistance to heat transport in the surface layer (s m-1).
-
-    References
-    ----------
-    .. .
-    '''
-
-    # Convert input scalars to numpy arrays
-    ustar, L = map(np.asarray, (ustar, L))
-
-    # if L -> infinity, z./L-> 0 and there is neutral atmospheric stability
-    # other atmospheric conditions
-    L[L == 0] = 1e-36
-    Psi_H_2 = MO.calc_Psi_H(2.0 / L)
-    Psi_H_01 = MO.calc_Psi_H(0.1 / L)
-
-    # i = np.logical_and(z_star>0, z_T<=z_star)
-    # Psi_H_star[i] = MO.calc_Psi_H_star(z_T[i], L[i], d_0[i], z_0H[i], z_star[i])
-    i = ustar != 0
-    R_A = np.asarray(np.ones(ustar.shape) * float('inf'))
-    R_A[i] = (np.log(2.0 / 0.1) - Psi_H_2[i] + Psi_H_01[i]) / (ustar[i] * KARMAN)
-    return np.asarray(R_A)
