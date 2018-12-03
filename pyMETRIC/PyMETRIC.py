@@ -216,7 +216,7 @@ class PyMETRIC(PyTSEB):
             dims = np.shape(in_data['T_R1'])
 
         except:
-            print('Error reading sunrise LST file ' + str(self.p['T_R0']))
+            print('Error reading LST file ' + str(self.p['T_R1']))
             fid = None
             return
                  
@@ -416,7 +416,10 @@ class PyMETRIC(PyTSEB):
         # ASCE G ratios
         elif self.G_form[0][0] == 4:  
             self.G_form[1] = (0.04, 0.10)
-       
+        
+        elif self.G_form[0][0] == 5:  
+            self.G_form[1] = (0.04, 0.10)
+
         del in_data['time']
         
         #======================================
@@ -575,7 +578,7 @@ class PyMETRIC(PyTSEB):
         del in_data['emis_C'], in_data['emis_S']
 
         out_data['albedo'] = 1.0 - out_data['R_ns1']/in_data['S_dn']
-
+       
         # Compute normalized temperatures by adiabatic correction
         gamma_w = met.calc_lapse_rate_moist(in_data['T_A1'],
                                             in_data['ea'],
@@ -686,6 +689,13 @@ class PyMETRIC(PyTSEB):
             if self.G_form[0][0] == 4:
                 model_params["calcG_params"] = [[1], 
                                                  np.ones(in_data['T_R1'][aoi].shape)*self.G_form[1][j]]
+
+            elif self.G_form[0][0] == 5:
+                model_params["calcG_params"] = [[1], (in_data['T_R1'][aoi] - 273.15)
+                                                    * (0.0038 + 0.0074*out_data['albedo'][aoi])
+                                                    * (1.0 - 0.98*in_data['VI'][aoi]**4)]
+
+            
             else:
                 model_params["calcG_params"] = [self.G_form[0], self.G_form[1][aoi]]
      

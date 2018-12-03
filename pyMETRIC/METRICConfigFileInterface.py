@@ -94,6 +94,8 @@ class METRICConfigFileInterface():
                 self.params['G_form'] = [[4],
                                          (float(config_data['G_tall']), 
                                           float(config_data['G_short']))]
+            elif int(config_data['G_form']) == 5:
+                self.params['G_form'] = [[5], None]
 
             self.params['output_file'] = config_data['output_file']
 
