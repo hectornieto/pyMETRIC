@@ -597,9 +597,9 @@ class PyMETRIC(PyTSEB):
                                  + (1.0 - in_data['VI']) * in_data['ET_bare_soil'] # Eq. 5 [Allen 2013]
 
         # Compute spatial homogeneity metrics
-        cv_ndvi, _, _ = endmember_search.moving_cv_filter(in_data['VI'], (10, 10))
-        cv_lst, _, std_lst = endmember_search.moving_cv_filter(Tr_datum, (10, 10))
-        cv_albedo,_, _ = endmember_search.moving_cv_filter(out_data['albedo'], (10, 10))
+        cv_ndvi, _, _ = endmember_search.moving_cv_filter(in_data['VI'], (11, 11))
+        cv_lst, _, std_lst = endmember_search.moving_cv_filter(Tr_datum, (11, 11))
+        cv_albedo,_, _ = endmember_search.moving_cv_filter(out_data['albedo'], (11, 11))
         
         
         # Create METRIC output metadata
