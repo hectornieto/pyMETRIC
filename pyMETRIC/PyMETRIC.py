@@ -461,7 +461,11 @@ class PyMETRIC(PyTSEB):
                 out_data[field] = out_data[field][subset[1]:subset[1]+subset[3],
                                                   subset[0]:subset[0]+subset[2]]
                 
-            
+        
+        if dims[0] <=0 or dims[1] <= 0:
+            print('No valid extent for creating ouput')
+            return in_data, out_data
+        
         self._write_raster_output(
             self.p['output_file'],
             out_data,
@@ -672,35 +676,35 @@ class PyMETRIC(PyTSEB):
                 out_data['LE_cold'].append(-9999)
                 out_data['LE_hot'].append(-9999)
                 continue
-
-            out_data['T_sd'].append(float(Tr_datum[aoi][out_data['hot_pixel']]))
-            out_data['T_vw'].append(float(Tr_datum[aoi][out_data['cold_pixel']]))
-            out_data['VI_sd'].append(float(in_data['VI'][aoi][out_data['hot_pixel']]))
-            out_data['VI_vw'].append(float(in_data['VI'][aoi][out_data['cold_pixel']]))
-            out_data['cold_pixel_global'].append(get_nested_position(out_data['cold_pixel'], aoi))
-            out_data['hot_pixel_global'].append(get_nested_position(out_data['hot_pixel'], aoi))
-            out_data['LE_cold'].append(float(out_data['ET_r_f_cold'][out_data['cold_pixel_global'][j]] 
-                                        * out_data['ET0_datum'][out_data['cold_pixel_global'][j]]))
-            out_data['LE_hot'].append(float(out_data['ET_r_f_hot'][out_data['hot_pixel_global'][j]] 
-                                        * out_data['ET0_datum'][out_data['hot_pixel_global'][j]]))
-    
-            
-            # Model settings
-            if self.G_form[0][0] == 4:
-                model_params["calcG_params"] = [[1], 
-                                                 np.ones(in_data['T_R1'][aoi].shape)*self.G_form[1][j]]
-
-            elif self.G_form[0][0] == 5:
-                model_params["calcG_params"] = [[1], (in_data['T_R1'][aoi] - 273.15)
-                                                    * (0.0038 + 0.0074*out_data['albedo'][aoi])
-                                                    * (1.0 - 0.98*in_data['VI'][aoi]**4)]
-
-            
             else:
-                model_params["calcG_params"] = [self.G_form[0], self.G_form[1][aoi]]
-     
-            # Other fluxes for vegetation
-            self._call_flux_model(in_data, out_data, model_params, aoi)
+                out_data['T_sd'].append(float(Tr_datum[aoi][out_data['hot_pixel']]))
+                out_data['T_vw'].append(float(Tr_datum[aoi][out_data['cold_pixel']]))
+                out_data['VI_sd'].append(float(in_data['VI'][aoi][out_data['hot_pixel']]))
+                out_data['VI_vw'].append(float(in_data['VI'][aoi][out_data['cold_pixel']]))
+                out_data['cold_pixel_global'].append(get_nested_position(out_data['cold_pixel'], aoi))
+                out_data['hot_pixel_global'].append(get_nested_position(out_data['hot_pixel'], aoi))
+                out_data['LE_cold'].append(float(out_data['ET_r_f_cold'][out_data['cold_pixel_global'][j]] 
+                                            * out_data['ET0_datum'][out_data['cold_pixel_global'][j]]))
+                out_data['LE_hot'].append(float(out_data['ET_r_f_hot'][out_data['hot_pixel_global'][j]] 
+                                            * out_data['ET0_datum'][out_data['hot_pixel_global'][j]]))
+        
+                
+                # Model settings
+                if self.G_form[0][0] == 4:
+                    model_params["calcG_params"] = [[1], 
+                                                     np.ones(in_data['T_R1'][aoi].shape)*self.G_form[1][j]]
+    
+                elif self.G_form[0][0] == 5:
+                    model_params["calcG_params"] = [[1], (in_data['T_R1'][aoi] - 273.15)
+                                                        * (0.0038 + 0.0074*out_data['albedo'][aoi])
+                                                        * (1.0 - 0.98*in_data['VI'][aoi]**4)]
+    
+                
+                else:
+                    model_params["calcG_params"] = [self.G_form[0], self.G_form[1][aoi]]
+         
+                # Other fluxes for vegetation
+                self._call_flux_model(in_data, out_data, model_params, aoi)
            
         del in_data, model_params, aoi, Tr_datum, cv_ndvi, cv_lst, std_lst, cv_albedo
 
