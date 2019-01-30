@@ -4,6 +4,9 @@ Created on Sat May 30 10:59:35 2015
 
 @author: hector
 """
+from collections import deque
+import time
+
 import numpy as np
 
 import pyTSEB.meteo_utils as met
@@ -14,14 +17,12 @@ import pyTSEB.TSEB as tseb
 # ==============================================================================
 # List of constants used in TSEB model and sub-routines
 # ==============================================================================
-# Change threshold in  Monin-Obukhov lengh to stop the iterations
-L_thres = 0.00001
-# Change threshold in  friction velocity to stop the iterations
-u_thres = 0.00001
+# Threshold for relative change in Monin-Obukhov lengh to stop the iterations
+L_thres = 0.001
 # mimimun allowed friction velocity
 u_friction_min = 0.01
 # Maximum number of interations
-ITERATIONS = 100
+ITERATIONS = 15
 # kB coefficient
 kB = 0
 # Stephan Boltzmann constant (W m-2 K-4)
@@ -274,15 +275,26 @@ def METRIC(Tr_K,
 #     ITERATIONS FOR MONIN-OBUKHOV LENGTH AND H TO CONVERGE
 # ==============================================================================
     # Initially assume stable atmospheric conditions and set variables for
-    L_old = np.ones(dT.shape)
-    L_diff = np.ones(dT.shape) * float('inf')
+    L_queue = deque([np.ones(dT.shape)], 6)
+    L_converged = np.asarray(np.zeros(Tr_K.shape)).astype(bool)
+    L_diff_max = np.inf
     i = np.ones(dT.shape, dtype=bool)
-    for n_iterations in range(max_iterations):
-        iterations[i] = n_iterations
-        if np.all(L_diff < L_thres):
-            break
+    start_time = time.time()
+    loop_time = time.time()
 
-        i = L_diff >= L_thres
+    for n_iterations in range(max_iterations):
+
+        iterations[i] = n_iterations
+        if np.all(L_converged):
+            break
+        current_time = time.time()
+        loop_duration = current_time - loop_time
+        loop_time = current_time
+        total_duration = loop_time - start_time
+        print("Iteration: %d, non-converged pixels: %d, max L diff: %f, total time: %f, loop time: %f" %
+              (n_iterations, np.sum(~L_converged[i]), L_diff_max, total_duration, loop_duration))
+
+        i = ~L_converged
 
         if use_METRIC_resistance is True:
             R_A_params = {"z_T": np.array([2.0, 2.0]),
@@ -307,18 +319,38 @@ def METRIC(Tr_K,
             # derived
             L[i] = MO.calc_L(u_friction[i], T_A_K[i], rho[i], c_p[i], H[i], LE[i])
 
-            L_diff = np.fabs(L - L_old) / np.fabs(L_old)
-            L_old = np.asarray(L)
-            L_old[np.fabs(L_old) == 0] = 1e-36
-
             u_friction[i] = MO.calc_u_star(u[i], z_u[i], L[i], d_0[i], z_0M[i])
-
-            u_friction = np.asarray(np.maximum(u_friction_min, u_friction))
+            u_friction[i] = np.asarray(np.maximum(u_friction_min, u_friction[i]))
+            
+            # We check convergence against the value of L from previous iteration but as well
+            # against values from 2 or 3 iterations back. This is to catch situations (not
+            # infrequent) where L oscillates between 2 or 3 steady state values.
+            L_new = np.array(L)
+            L_new[L_new == 0] = 1e-36
+            L_queue.appendleft(L_new)
+            i = ~L_converged
+            L_converged[i] = _L_diff(L_queue[0][i], L_queue[1][i]) < L_thres
+            L_diff_max = np.max(_L_diff(L_queue[0][i], L_queue[1][i]))
+            if len(L_queue) >= 4:
+                i = ~L_converged
+                L_converged[i] = np.logical_and(_L_diff(L_queue[0][i], L_queue[2][i]) < L_thres,
+                                                _L_diff(L_queue[1][i], L_queue[3][i]) < L_thres)
+            if len(L_queue) == 6:
+                i = ~L_converged
+                L_converged[i] = np.logical_and.reduce((_L_diff(L_queue[0][i], L_queue[3][i]) < L_thres,
+                                                        _L_diff(L_queue[1][i], L_queue[4][i]) < L_thres,
+                                                        _L_diff(L_queue[2][i], L_queue[5][i]) < L_thres))
 
     flag, Ln, LE, H, G, R_A, u_friction, L, iterations = map(
         np.asarray, (flag, Ln, LE, H, G, R_A, u_friction, L, iterations))
 
     return flag, Ln, LE, H, G, R_A, u_friction, L, iterations
+
+
+def _L_diff(L, L_old):
+    L_diff = np.asarray(np.fabs(L - L_old) / np.fabs(L_old))
+    L_diff[np.isnan(L_diff)] = float('inf')
+    return L_diff
 
 
 def calc_dT(H, R_AH, rho, c_p):
