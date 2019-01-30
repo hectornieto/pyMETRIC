@@ -77,8 +77,6 @@ class PyMETRIC(PyTSEB):
             parameters["G_tall"] = 0.04   
         if "G_short" not in parameters.keys():
             parameters["G_tall"] = 0.10
-        if "subset_output" not in parameters.keys():
-            parameters["subset_output"] = []
 
         parameters["resistance_form"] = 0
         super().__init__(parameters)
