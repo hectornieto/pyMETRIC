@@ -168,6 +168,12 @@ def esa(vi_array,
         Remote Sensing of Environment, Volume 196, Pages 178-192,
         https://doi.org/10.1016/j.rse.2017.05.009.
     '''
+    
+    lst_nan = np.isnan(lst_array)
+    vi_nan = np.isnan(vi_array)
+    if np.all(lst_nan) or np.all(vi_nan):
+        print('No valid LST or VI pixels')
+        return None, None
 
     # Step 1. Find homogeneous pixels
     print('Filtering pixels by homgeneity')
@@ -178,8 +184,10 @@ def esa(vi_array,
     print('Found %s homogeneous pixels'%np.sum(homogeneous))
     if np.sum(homogeneous) == 0:
         return None, None
+    
     # Step 2 Filter outliers by Building ndvi and lst histograms
-    lst_min, lst_max, vi_min, vi_max = histogram_fiter(vi_array, lst_array)    
+    lst_min, lst_max, vi_min, vi_max = histogram_fiter(vi_array[~vi_nan],
+                                                       lst_array[~lst_nan])    
 
     print('Removing outliers by histogram')
     mask = np.logical_and.reduce((homogeneous,
