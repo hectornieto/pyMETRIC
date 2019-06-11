@@ -26,7 +26,8 @@ class METRICConfigFileInterface():
         self.params = {}
         self.ready = False
 
-        temp_params = {'model': 'METRIC', 'use_METRIC_resistance': 1, 'G_form': 0}
+        temp_params = {'model': 'METRIC', 'use_METRIC_resistance': 1, 'G_form': 0,
+                       'water_stress': False}
         temp_model = PyMETRIC(temp_params)
         self.input_vars = temp_model._get_input_structure().keys()
 
@@ -79,6 +80,11 @@ class METRICConfigFileInterface():
                 self.params['calc_row'] = [
                     1,
                     float(config_data['row_az'])]
+            
+            if 'water_stress' not in config_data:
+                self.params['water_stress'] = False
+            else:
+                self.params['water_stress'] = bool(int(config_data['water_stress']))
 
             if int(config_data['G_form']) == 0:
                 self.params['G_form'] = [[0], float(config_data['G_constant'])]
