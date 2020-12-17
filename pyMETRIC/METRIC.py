@@ -70,7 +70,7 @@ def METRIC(Tr_K,
     p : float
         Atmospheric pressure (mb), use 1013 mb by default.
     S_n : float
-        Solar irradiance (W m-2).
+        Solar net radiation (W m-2).
     L_dn : float
         Downwelling longwave radiation (W m-2)
     emis : float
