@@ -430,7 +430,7 @@ class PyMETRIC(PyTSEB):
         # Save output files
 
         # Output variables saved in images
-        self.fields = ('H1', 'LE1', 'R_n1', 'G1')
+        self.fields = ('R_n1', 'H1', 'LE1', 'G1')
         # Ancillary output variables
         self.anc_fields = (
             'R_ns1',
