@@ -1,4 +1,4 @@
-# TSEB model to run: [TSEB_PT: Kustas and Norman 1999 Priestley-Taylor TSEB, DTD: Norman et al. 2003 Dual Time Differenced TSEB, TSEB_2T: Component temperatures TSEB (To be implemented the patched/parallel very high resolution TSEB]
+# Model to run: 
 model=pyMETRIC
 
 #==============================================================================
@@ -7,68 +7,67 @@ model=pyMETRIC
 #==============================================================================
 
 # Input land surface temperature in Kelvin # mandatory file
-# If running DTD both T_R0 (sunrise) and T_R1 inputs are required
-# If running TSEB_2A the input T_R1 should contain at least 2 bands: [band 1: Canopy temperature, band 2: soil temperature]
-T_R1=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":LST_DT
+T_R1=./Input/ExampleImage_Trad_pm.tif
 
 # Processing Mask (boolean) # Optional, type a full-path file for processing only on non-masked pixels (all pixels with values > 0 in the mask image will be processed)
-input_mask=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":MASK
+input_mask=0
 
 # Effective Leaf Area Index (m2/m2) # Optional, type either a full-path file or a single value for a constant value acroos the area
-LAI=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":LAI
+LAI=./Input/ExampleImage_LAI.tif
 
 # NDVI constant value acroos the area
-VI=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":FVC
+VI=./Input/ExampleImage_NDVI.tif
 
 # Vegetation Fractional Cover # Optional, type either a full-path file or a single value for a constant value acroos the area
-f_c=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":F_C
+f_c=0.4
 
 # Canopy height (m)# Optional, type either a full-path file or a single value for a constant value along the area
-h_C=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":H_C
+h_C=2.4
 
 # Canopy height/with ratio (wc/hc) # Optional, type either a full-path file or a single value for a constant value along the area
-w_C=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":W_C
+w_C=1
  
 #==============================================================================
 # Output File
 #==============================================================================
-# full path to output directory, The output GeoTIFF files will be stored in that folder with a standard name : Output_<TSEB_MODEL>.tif and Output_<TSEB_MODEL>_ancillary.tif
-output_file=/home/hector/Data/Projects/SEN4ET/WP3/output/METRIC_20170527_HR.nc
+# full path to output directory, The output GeoTIFF files will be stored in that folder with a standard name : Output_<TSEB_MODEL>.tif (4 bands: Rn, H, LE, G) and Output_<TSEB_MODEL>_ancillary.tif
+output_file=./Output/test_image.tif
 
 #==============================================================================
 # Site Description
 #==============================================================================
-lat=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":LAT
-lon=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":LON
-alt=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":ELEV
-stdlon=0
-z_T=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":H_BLENDING
-z_u=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":H_BLENDING
+lat=38.289355	
+lon=-121.117794
+alt=97
+stdlon=-105.0
+z_T=5
+z_u=5
 
 
 #==============================================================================
 # Meteorology
 #==============================================================================
-DOY=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":DOY
-time=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":TIME_UTC
-T_A1=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":TA
-u=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":U
-p=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":P
-ea=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":EA
-S_dn=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":SDN
+DOY=221	
+time=10.9992	
+T_A0=291.11
+T_A1=299.18
+u=2.15
+p=1011
+ea=13.4
+S_dn=861.74
 L_dn=
 
 #==============================================================================
 # Canopy and Soil spectra
 #==============================================================================
-emis_C=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":EMISS_C # leaf emissivity
-emis_S=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":EMISS_S # soil emissivity
+emis_C=0.98 # leaf emissivity
+emis_S=0.95 # soil emissivity
 
 # Leaf spectral properties:{rho_vis_C: visible reflectance, tau_vis_C: visible transmittance, rho_nir_C: NIR reflectance, tau_nir_C: NIR transmittance}
-rho_vis_C=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":RHO_VIS_C
-tau_vis_C=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":TAU_VIS
-rho_nir_C=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":RHO_NIR_C
-tau_nir_C=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":TAU_NIR
+rho_vis_C=0.07
+tau_vis_C=0.08
+rho_nir_C=0.32
+tau_nir_C=0.33 
 
 # Soil spectral properties:{rho_vis_S: visible reflectance, rho_nir_S: NIR reflectance}
 rho_vis_S=0.15
@@ -78,11 +77,10 @@ rho_nir_S=0.25
 # Canopy and soil parameters
 #==============================================================================
 # Cambpbell 1990 leaf inclination distribution parameter:[x_LAD=1 for spherical LIDF, x_LAD=0 for vertical LIDF, x_LAD=float(inf) for horzontal LIDF]  
-x_LAD=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":X_LAD
+x_LAD=1
 
 # Primary land cover IGBP Land Cover Type Classification: CROP=12, GRASS=10, SHRUB=6, CONIFER=1, BROADLEAVED=4
-landcover=NETCDF:"/home/hector/Data/Projects/SEN4ET/WP3/output/AURADE_HR/pyTSEB_20170719_HR.nc":IGBP
-
+landcover=12
 
 
 #==============================================================================
@@ -102,11 +100,6 @@ z0_soil=0.01
 #2: estimate G from Santanello and Friedl with GAmp the maximum ration amplitude, Gphase, the time shift between G and Rn (hours) and Gshape the typical diurnal shape (hours)
 #4: Use ASCE PET G ratios for either tall or short vegetation
 G_form=4
-G_ratio=0.1
-G_constant=0
-G_amp=0.35
-G_phase=3
-G_shape=24
 G_tall=0.04
 G_short=0.10
 
