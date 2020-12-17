@@ -29,9 +29,8 @@ The following Python libraries will be required:
 ### High-level example
 You can run METRIC with the scripts METRIC_local_image_main.py, which will read an input configuration file (default is Config_LocalImage.txt). You can edit this configuration file or make a copy to fit your data and site characteristics and either run it in a Python GUI or in a terminal shell:
 
-    python TSEB_local_image_main.py <configuration file>
-
-    where <configuration file> points to a customized configuration file... leave it blank if you want to use the default file Config_LocalImage.txt
+`python TSEB_local_image_main.py <configuration file>`
+> where \<configuration file> points to a customized configuration file... leave it blank if you want to use the default file Config_LocalImage.txt
 
 
 ### Low-level example
