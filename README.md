@@ -7,6 +7,7 @@ This project contains *Python* code for *Mapping EvapoTranspiration at high Reso
 The project consists of: 
 
 1. lower-level modules with the basic functions needed in any resistance energy balance model 
+2. higher-level script for easily running METRIC with satellite/airborne imagery.
 
 ## Installation
 
@@ -25,8 +26,16 @@ The following Python libraries will be required:
 - GDAL
 
 ## Code Example
+### High-level example
+You can run METRIC with the scripts METRIC_local_image_main.py, which will read an input configuration file (default is Config_LocalImage.txt). You can edit this configuration file or make a copy to fit your data and site characteristics and either run it in a Python GUI or in a terminal shell:
+
+    python TSEB_local_image_main.py <configuration file>
+
+    where <configuration file> points to a customized configuration file... leave it blank if you want to use the default file Config_LocalImage.txt
+
+
 ### Low-level example
-You can run METRIC or any related process in python by importing the module *METRIC* from the *pyMETRIC* package. 
+You can also run METRIC or any related process in python by importing the module *METRIC* from the *pyMETRIC* package. 
 It will also import the ancillary modules (*pyTSEB.resitances.py* as `res`, *pyTSEB.net_radiation* as `rad`,
 *pyTSEB.MO_similarity.py* as `MO`, and *pyTSEB.meteo_utils* as `met`)
 
