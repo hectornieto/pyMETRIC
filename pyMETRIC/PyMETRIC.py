@@ -25,7 +25,7 @@ from os import mkdir
 
 import numpy as np
 import ast
-import gdal
+from osgeo import gdal
 from netCDF4 import Dataset
 
 from pyTSEB.PyTSEB import PyTSEB, S_N, S_P, S_A
