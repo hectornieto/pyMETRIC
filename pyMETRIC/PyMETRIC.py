@@ -20,7 +20,7 @@ Created on May 30 2018
 '''
 
 from collections import OrderedDict
-from os.path import splitext, dirname, exists
+from os.path import splitext, dirname, exists, join, basename
 from os import mkdir
 
 import numpy as np
@@ -179,7 +179,9 @@ class PyMETRIC(PyTSEB):
             ('u_friction', S_A), # Friction velocity
             ('flag', S_A),  # Quality flag
             ('n_iterations', S_N), # Number of iterations before model converged to stable value
-            ('ET0_datum', S_A)])  
+            ('ET0_datum', S_A),
+            ('ET0', S_A),
+            ('fETr', S_A)])
 
         return output_structure
 
@@ -200,22 +202,21 @@ class PyMETRIC(PyTSEB):
         # Open the LST data according to the model
         try:
             fid = gdal.Open(self.p['T_R1'], gdal.GA_ReadOnly)
-            prj = fid.GetProjection()
-            geo = fid.GetGeoTransform()
-            if subset:                   
+            self.prj = fid.GetProjection()
+            self.geo = fid.GetGeoTransform()
+            if subset:
                 in_data['T_R1'] = fid.GetRasterBand(1).ReadAsArray(subset[0],
                                                         subset[1],
                                                         subset[2],
                                                         subset[3])
-                geo = [geo[0]+subset[0]*geo[1], geo[1], geo[2], 
-                       geo[3]+subset[1]*geo[5], geo[4], geo[5]]
+                self.geo = [geo[0]+subset[0]*geo[1], geo[1], geo[2],
+                            geo[3]+subset[1]*geo[5], geo[4], geo[5]]
             else:
                 in_data['T_R1'] = fid.GetRasterBand(1).ReadAsArray()
             dims = np.shape(in_data['T_R1'])
 
         except:
             print('Error reading LST file ' + str(self.p['T_R1']))
-            fid = None
             return
                  
         # Read the image mosaic and get the LAI
@@ -428,34 +429,23 @@ class PyMETRIC(PyTSEB):
 
         #======================================
         # Save output files
+        all_fields = self._get_output_structure()
+        primary_fields = [field for field, save in all_fields.items() if save == S_P]
+        ancillary_fields = [field for field, save in all_fields.items() if save == S_A]
 
-        # Output variables saved in images
-        self.fields = ('R_n1', 'H1', 'LE1', 'G1')
-        # Ancillary output variables
-        self.anc_fields = (
-            'R_ns1',
-            'R_nl1',
-            'u_friction',
-            'L',
-            'R_A1',
-            'flag', 
-            'ET0_datum')
-        
         outdir = dirname(self.p['output_file'])
         if not exists(outdir):
             mkdir(outdir)
           
-        geo_father = []    
         if 'subset_output' in self.p:
-            geo_father = geo
             subset, geo = self._get_subset(self.p["subset_output"], prj, geo)
             dims = (subset[3], subset[2])
 
             
-            for field in self.fields:
+            for field in primary_fields:
                 out_data[field] = out_data[field][subset[1]:subset[1]+subset[3],
                                                   subset[0]:subset[0]+subset[2]]
-            for field in self.anc_fields:
+            for field in ancillary_fields:
                 out_data[field] = out_data[field][subset[1]:subset[1]+subset[3],
                                                   subset[0]:subset[0]+subset[2]]
                 
@@ -467,20 +457,14 @@ class PyMETRIC(PyTSEB):
         self._write_raster_output(
             self.p['output_file'],
             out_data,
-            geo,
-            prj,
-            self.fields,
-            geo_father=geo_father)
+            primary_fields)
 
         outputfile = splitext(self.p['output_file'])[0] + '_ancillary' + \
                      splitext(self.p['output_file'])[1]
         self._write_raster_output(
             outputfile,
             out_data,
-            geo,
-            prj,
-            self.anc_fields,
-            geo_father=geo_father)
+            ancillary_fields)
         
 
         print('Saved Files')
@@ -513,7 +497,9 @@ class PyMETRIC(PyTSEB):
 
         # Create the output dictionary
         out_data = dict()
-        for field in self._get_output_structure():
+        all_fields = self._get_output_structure()
+
+        for field in all_fields:
             out_data[field] = np.zeros(in_data['LAI'].shape) + np.NaN
             
         print('Estimating net shortwave radiation using Cambpell two layers approach')
@@ -633,7 +619,18 @@ class PyMETRIC(PyTSEB):
                                                           in_data['z_T'][aoi],
                                                           f_cd=1,
                                                           reference=ET0_SEARCH_STRING[j])
-           
+
+            out_data['ET0'][aoi] = METRIC.pet_asce(in_data['T_A1'][aoi],
+                                                   in_data['u'][aoi],
+                                                   in_data['ea'][aoi],
+                                                   in_data['p'][aoi],
+                                                   in_data['S_dn'][aoi],
+                                                   in_data['z_u'][aoi],
+                                                   in_data['z_T'][aoi],
+                                                   f_cd=1,
+                                                   reference=ET0_SEARCH_STRING[j])
+
+
             print('Automatic search of METRIC hot and cold pixels')
             # Find hot and cold endmembers in the Area of Interest
             if self.endmember_search == 0:
@@ -708,6 +705,7 @@ class PyMETRIC(PyTSEB):
 
         # Calculate the global net radiation
         out_data['R_n1'] = out_data['R_ns1'] + out_data['R_nl1']
+        out_data['fETr'] = out_data['LE1'] / out_data['ET0']
 
         print("Finished processing!")
         return out_data
@@ -785,89 +783,92 @@ class PyMETRIC(PyTSEB):
                 
         return success, array
 
-    def _write_raster_output(self, outfile, output, geo, prj, fields, geo_father = []):
-        '''Writes the arrays of an output dictionary which keys match the list 
-           in fields to a raster file '''
+    def _write_raster_output(self, outfile, output, fields):
+        '''Write the specified arrays of a dictionary to a raster file.
+
+        Parameters
+        ----------
+        outfile : string
+            Path to the output raster. If the path ends in ".nc" the output will be saved in a
+            netCDF file. If the path ends in ".vrt" then the outputs will be saved in a GDAL
+            virtual raster with the actual data saved as GeoTIFFs (one per field) in .data
+            sub-folder. Otherwise, the output will be saved as one GeoTIFF.
+        output : dict
+            The dictionary containing the output data arrays.
+        fields : string list
+            The list of output fields from the output dictionary to save to file.
+
+        Returns
+        -------
+        None
+        '''
 
         # If the output file has .nc extension then save it as netCDF,
         # otherwise assume that the output should be a GeoTIFF
         ext = splitext(outfile)[1]
         if ext.lower() == ".nc":
-            driver = "netCDF"
-            opt = ["FORMAT=NC2"]
-            is_netCDF = True
-        else:
-            driver = "GTiff"
+            driver_name = "netCDF"
+            opt = ["FORMAT=NC4"]
             opt = []
-            is_netCDF = False
-
-        # Save the data using GDAL
-        rows, cols = np.shape(output['H1'])
-        driver = gdal.GetDriverByName(driver)
-        nbands = len(fields)
-        ds = driver.Create(outfile, cols, rows, nbands, gdal.GDT_Float32, opt)
-        ds.SetGeoTransform(geo)
-        ds.SetProjection(prj)
-        for i, field in enumerate(fields):
-            band = ds.GetRasterBand(i + 1)
-            band.SetNoDataValue(np.NaN)
-            band.WriteArray(output[field])
-            band.FlushCache()
-        ds.FlushCache()
-        ds = None
-        
-        # In case of netCDF format use netCDF4 module to assign proper names 
-        # to variables (GDAL can't do this). Also it seems that GDAL has
-        # problems assigning projection to all the bands so fix that.
-        if is_netCDF:
-            
-            
-            ds = Dataset(outfile, 'a')
-            grid_mapping = ds["Band1"].grid_mapping
+        elif ext.lower() == ".vrt":
+            driver_name = "VRT"
+            opt = []
+        else:
+            driver_name = "GTiff"
+            opt = []
+        if driver_name in ["GTiff", "netCDF"]:
+            # Save the data using GDAL
+            rows, cols = np.shape(output['H1'])
+            driver = gdal.GetDriverByName(driver_name)
+            nbands = len(fields)
+            ds = driver.Create(outfile, cols, rows, nbands, gdal.GDT_Float32, opt)
+            ds.SetGeoTransform(self.geo)
+            ds.SetProjection(self.prj)
             for i, field in enumerate(fields):
-                ds.renameVariable("Band"+str(i+1), field)
-                ds[field].grid_mapping = grid_mapping
-            ds.close()
-            
-            if geo_father:
-                geo = geo_father
-            self._write_netcdf_metadata(outfile, output, geo) # Save METRIC metadata for netcdf files
+                band = ds.GetRasterBand(i + 1)
+                band.SetNoDataValue(np.NaN)
+                band.WriteArray(output[field])
+                band.FlushCache()
+            ds.FlushCache()
+            del ds
+            # In case of netCDF format use netCDF4 module to assign proper names
+            # to variables (GDAL can't do this). Also it seems that GDAL has
+            # problems assigning projection to all the bands so fix that.
+            if driver_name == "netCDF":
+                ds = Dataset(outfile, 'a')
+                grid_mapping = ds["Band1"].grid_mapping
+                for i, field in enumerate(fields):
+                    ds.renameVariable("Band"+str(i+1), field)
+                    ds[field].grid_mapping = grid_mapping
+                ds.close()
+
+        else:
+            # Save each individual oputput in a GeoTIFF file in .data directory using GDAL
+            out_dir = join(dirname(outfile),
+                           splitext(basename(outfile))[0] + ".data")
+            if not exists(out_dir):
+                mkdir(out_dir)
+            out_files = []
+            rows, cols = np.shape(output['H1'])
+            for i, field in enumerate(fields):
+                driver = gdal.GetDriverByName("GTiff")
+                out_path = join(out_dir, field + ".tif")
+                ds = driver.Create(out_path, cols, rows, 1, gdal.GDT_Float32, opt)
+                ds.SetGeoTransform(self.geo)
+                ds.SetProjection(self.prj)
+                band = ds.GetRasterBand(1)
+                band.SetNoDataValue(np.NaN)
+                band.WriteArray(output[field])
+                band.FlushCache()
+                ds.FlushCache()
+                out_files.extend([out_path])
+
+            # Create the Virtual Raster Table
+            out_vrt = out_dir.replace('.data', '.vrt')
+            print(out_files)
+            gdal.BuildVRT(out_vrt, out_files, separate=True)
 
 
-    def _write_netcdf_metadata(self, outfile, output, geo):
-        '''Writes the metadata of an output dictionary which keys match the list 
-           in fields to a raster file '''
-
-        # Save the data using GDAL
-        ds = xarray.open_dataset(outfile)
-        for i, lc_type in enumerate(LC_SEARCH_STRING):
-            #ds.attrs["cold_pixel_coordinates_%s"%(lc_type)] = output['cold_pixel_global'][i]
-            #ds.attrs["hot_pixel_coordinates_%s"%(lc_type)] = output['hot_pixel_global'][i]
-            
-            if output['cold_pixel_global'][i] == -9999:
-                cold_map_coordinates = -9999
-            else:
-                cold_map_coordinates = (geo[0] + geo[1] * output['cold_pixel_global'][i][1] + geo[2] * output['cold_pixel_global'][i][0],
-                                        geo[3] + geo[4] * output['cold_pixel_global'][i][1] + geo[5] * output['cold_pixel_global'][i][0])
-            
-            if output['hot_pixel_global'][i] == -9999:
-                hot_map_coordinates = -9999
-            else:
-                hot_map_coordinates = (geo[0] + geo[1] * output['hot_pixel_global'][i][1] + geo[2] * output['hot_pixel_global'][i][0],
-                                        geo[3] + geo[4] * output['hot_pixel_global'][i][1] + geo[5] * output['hot_pixel_global'][i][0])
-        
-            ds.attrs["cold_map_coordinates_%s"%(lc_type)] = cold_map_coordinates
-            ds.attrs["hot_map_coordinates_%s"%(lc_type)] = hot_map_coordinates
-            
-            ds.attrs['cold_temperature_%s'%(lc_type)] = output['T_vw'][i]
-            ds.attrs['hot_temperature_%s'%(lc_type)] = output['T_sd'][i]
-            ds.attrs['cold_VI_%s'%(lc_type)] = output['VI_vw'][i]
-            ds.attrs['hot_VI_%s'%(lc_type)] = output['VI_sd'][i]
-            ds.attrs['LE_cold_%s'%(lc_type)] = output['LE_cold'][i]
-            ds.attrs['LE_hot_%s'%(lc_type)] = output['LE_hot'][i]
-        
-        ds.to_netcdf(outfile, mode ='a')
-        ds.close()
 
 def get_nested_position(local_index, global_mask):
     
