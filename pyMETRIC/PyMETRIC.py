@@ -35,6 +35,10 @@ from pyTSEB import net_radiation as rad
 from pyMETRIC import METRIC, endmember_search
 import xarray
 
+CIMEC = 0
+ESA = 1
+MINMAX = 2
+
 VI_MAX = 0.95
 
 # Set the landcover classes that will be used for searching endmembers 
@@ -633,24 +637,30 @@ class PyMETRIC(PyTSEB):
 
             print('Automatic search of METRIC hot and cold pixels')
             # Find hot and cold endmembers in the Area of Interest
-            if self.endmember_search == 0:
-                [in_data['cold_pixel'],
-                 in_data['hot_pixel']] = endmember_search.cimec(in_data['VI'][aoi],
+            if self.endmember_search == CIMEC:
+                [out_data['cold_pixel'],
+                 out_data['hot_pixel']] = endmember_search.cimec(in_data['VI'][aoi],
                                                                 Tr_datum[aoi],
                                                                 out_data['albedo'][aoi],
                                                                 in_data['SZA'][aoi],
                                                                 cv_ndvi[aoi],
                                                                 cv_lst[aoi],
-                                                                adjust_rainfall = False)
+                                                                adjust_rainfall=False)
     
-            elif self.endmember_search == 1:
+            elif self.endmember_search == ESA:
                 [out_data['cold_pixel'], 
                  out_data['hot_pixel']] = endmember_search.esa(in_data['VI'][aoi],
                                                               Tr_datum[aoi],
                                                               cv_ndvi[aoi],
                                                               std_lst[aoi],
                                                               cv_albedo[aoi])
-            
+
+            elif self.endmember_search == MINMAX:
+                [out_data['cold_pixel'],
+                 out_data['hot_pixel']] = endmember_search.maxmin_temperature(in_data['VI'][aoi],
+                                                             Tr_datum[aoi])
+
+
             else:
                 [out_data['cold_pixel'],
                  out_data['hot_pixel']] = endmember_search.cimec(in_data['VI'][aoi],
@@ -659,7 +669,7 @@ class PyMETRIC(PyTSEB):
                                                                 in_data['SZA'][aoi],
                                                                 cv_ndvi[aoi],
                                                                 cv_lst[aoi],
-                                                                adjust_rainfall = False)
+                                                                adjust_rainfall=False)
     
             if out_data['cold_pixel'] == None or out_data['hot_pixel'] == None:
                 out_data['T_sd'].append(-9999)

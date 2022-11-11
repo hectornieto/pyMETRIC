@@ -12,17 +12,26 @@ from scipy.signal import convolve2d
 VI_SOIL = 0.0
 VI_FULL = 0.95
    
-def maxmin_temperature(vi_array, lst_array, vi_lower_limit = VI_SOIL):
+def maxmin_temperature(vi_array, lst_array, vi_lower_limit=None):
+    lst_nan = np.isnan(lst_array)
+    vi_nan = np.isnan(vi_array)
+    if np.all(lst_nan) or np.all(vi_nan):
+        print('No valid LST or VI pixels')
+        return None, None
+
+    if isinstance(vi_lower_limit, type(None)):
+        vi_lower_limit = np.nanpercentile(vi_array, 0.05)
+
     #cold pixel
-    lst = np.amin(lst_array[vi_array >= vi_lower_limit])
+    lst = np.nanmin(lst_array[vi_array >= vi_lower_limit])
     cold_pixel = tuple(np.argwhere(lst_array == lst)[0])
     print('Cold  pixel found with %s K and %s VI'%(float(lst_array[cold_pixel]),
                                                    float(vi_array[cold_pixel])))
     #hot pixel
-    lst = np.amax(lst_array[vi_array <= vi_lower_limit])
+    lst = np.nanmax(lst_array[vi_array <= vi_lower_limit])
     hot_pixel = tuple(np.argwhere(lst_array == lst)[0])
     print('Hot  pixel found with %s K and %s VI'%(float(lst_array[hot_pixel]),
-                                                   float(vi_array[hot_pixel])))
+                                                  float(vi_array[hot_pixel])))
    
     return cold_pixel, hot_pixel
 
@@ -33,7 +42,7 @@ def cimec(vi_array,
           sza_array,
           cv_ndvi,
           cv_lst,
-          adjust_rainfall = False):
+          adjust_rainfall=False):
     ''' Finds the hot and cold pixel using the 
     Calibration using Inverse Modelling at Extreme Conditios
     
@@ -67,15 +76,21 @@ def cimec(vi_array,
         Journal of the American Water Resources Association (JAWRA) .49(3):563–576
         https://doi.org/10.1111/jawr.12056
     '''
+    lst_nan = np.isnan(lst_array)
+    vi_nan = np.isnan(vi_array)
+    if np.all(lst_nan) or np.all(vi_nan):
+        print('No valid LST or VI pixels')
+        return None, None
+
 #==============================================================================
 #     # Cold pixel
 #==============================================================================
     # Step 1. Find the 5% top NDVI pixels
-    ndvi_top = np.percentile(vi_array, 95)
+    ndvi_top = np.nanpercentile(vi_array, 95)
     ndvi_index = vi_array >= ndvi_top
 
     # Step 2. Identify the coldest 20% LST pixels from ndvi_index and compute their LST and NDVI mean value
-    lst_low = np.percentile(lst_array[ndvi_index], 20)
+    lst_low = np.nanpercentile(lst_array[ndvi_index], 20)
     lst_index = lst_array <= lst_low
     lst_cold = np.mean(lst_array[lst_index])
     
@@ -99,11 +114,11 @@ def cimec(vi_array,
 #     # Cold pixel
 #==============================================================================
     # Step 1. Find the 10% lowest NDVI    
-    ndvi_low = np.percentile(vi_array, 10)
+    ndvi_low = np.nanpercentile(vi_array, 10)
     ndvi_index = vi_array <= ndvi_low
     
     # Step 2. Identify the hotest 20% LST pixels from ndvi_index and compute their LST and NDVI mean value
-    lst_high = np.percentile(lst_array[ndvi_index], 80)
+    lst_high = np.nanpercentile(lst_array[ndvi_index], 80)
     lst_index = lst_array >= lst_high
     lst_hot = np.mean(lst_array[lst_index])
     
@@ -297,8 +312,8 @@ def incremental_search(vi_array, lst_array, mask, is_cold = True):
             for n_lst in range(1, 11 + step):
                 for n_vi in range(1, 11 + step):
                     print('Searching cold pixels from the %s %% minimum LST and %s %% maximum VI'%(n_lst, n_vi))
-                    vi_high = np.percentile(vi_array[mask], 100 - n_vi)
-                    lst_cold = np.percentile(lst_array[mask], n_lst)
+                    vi_high = np.nanpercentile(vi_array[mask], 100 - n_vi)
+                    lst_cold = np.nanpercentile(lst_array[mask], n_lst)
                     cold_index = np.logical_and.reduce((mask,
                                                          vi_array >= vi_high,
                                                          lst_array <= lst_cold))
@@ -316,8 +331,8 @@ def incremental_search(vi_array, lst_array, mask, is_cold = True):
             for n_lst in range(1,11 + step):
                 for n_vi in range(1,11 + step):
                     print('Searching hot pixels from the %s %% maximum LST and %s %% minimum VI'%(n_lst, n_vi))
-                    vi_low = np.percentile(vi_array[mask], n_vi)
-                    lst_hot = np.percentile(lst_array[mask], 100 - n_lst)
+                    vi_low = np.nanpercentile(vi_array[mask], n_vi)
+                    lst_hot = np.nanpercentile(lst_array[mask], 100 - n_lst)
                     hot_index = np.logical_and.reduce((mask,
                                                         vi_array <= vi_low,
                                                         lst_array >= lst_hot))
