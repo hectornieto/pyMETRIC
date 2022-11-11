@@ -108,5 +108,6 @@ G_short=0.10
 # Search method 
 # 0 : Allen et al. 2013: calibration using inverse modeling at extreme conditions (CIMEC)
 # 1 : Bhattarai et al. 2017: exhaustive search algorithm (ESA)
-endmember_search=1
+# 2 : Minimum and maximum temperatures
+endmember_search=2
 ETrF_bare=0
