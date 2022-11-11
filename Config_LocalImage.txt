@@ -31,7 +31,7 @@ w_C=1
 # Output File
 #==============================================================================
 # full path to output directory, The output GeoTIFF files will be stored in that folder with a standard name : Output_<TSEB_MODEL>.tif (4 bands: Rn, H, LE, G) and Output_<TSEB_MODEL>_ancillary.tif
-output_file=./Output/test_image.tif
+output_file=./Output/test_image.vrt
 
 #==============================================================================
 # Site Description
@@ -108,5 +108,5 @@ G_short=0.10
 # Search method 
 # 0 : Allen et al. 2013: calibration using inverse modeling at extreme conditions (CIMEC)
 # 1 : Bhattarai et al. 2017: exhaustive search algorithm (ESA)
-endmember_search=1 
+endmember_search=1
 ETrF_bare=0
